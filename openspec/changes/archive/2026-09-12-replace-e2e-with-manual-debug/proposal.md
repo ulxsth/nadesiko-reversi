@@ -1,10 +1,10 @@
 # 実runtime E2Eを手動デバッグへ置き換える
 
-## 背景
+## Why
 
 ローカルMVPのblack-box E2Eは、テストごとにGo serverとgonako processを起動し、対局終了まで多数のcommandを評価する。実装横断の回帰検知には有効だが、常時実行すると開発待ち時間と保守範囲が大きい。
 
-## 変更
+## What Changes
 
 - `tests/e2e`の実runtimeテストを削除し、`make check`をpackage test中心へ戻す。
 - 実server、gonako、ブラウザの結合確認を、人間が再現できるチェックリストとして文書化する。
