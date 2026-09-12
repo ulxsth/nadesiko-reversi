@@ -32,3 +32,16 @@
 - Issueの受け入れ条件をPR本文で一つずつ確認する。
 - PRのbaseは`develop`にする。`main`へ直接PRしない。
 - 担当外の整形、リネーム、依存更新を混ぜない。
+
+## PRマージ後のIssue整理
+
+実装Agentはfeature PRの本文へ`Closes #<Issue番号>`と後続Issueへの影響を書く。feature PRのbaseは既定ブランチではなく`develop`なので、マージ担当者は自動クローズだけに依存せず、マージ直後に次を行う。
+
+1. 担当IssueがCLOSEDになったことを確認する。OPENのままなら、マージPRをコメントして手動で閉じる。
+2. 担当Issueを依存先に持つOPEN Issueを確認する。
+3. すべての依存Issueが`develop`へマージ済みなら、`blocked`を外して`agent-ready`を付ける。
+4. 未完了の追加依存がある場合は、`agent-ready`を外して`blocked`を付け、依存Issue番号をコメントする。
+5. `human-task`のIssueには`agent-ready`を付けない。
+6. OpenSpec archive PRのマージでは、実装Issueの状態や依存ラベルを再変更しない。
+
+Issueのクローズと依存ラベルの更新はマージ担当者の責務とする。
