@@ -10,7 +10,7 @@
 | #4 なでしこ3盤面UI | `build-board-client` | `web/**`（`vendor`除外） | #1 |
 | #5 ローカル二人対戦 | `add-realtime-match` | `server/internal/match/**` | #1, #3 |
 | #6 対局ログ保存・再生 | `add-executable-replay` | `server/internal/replay/**`, `rules/replay/**` | #1, #2, #3 |
-| #7 統合とデモ導線 | `complete-demo-integration` | `server/main.go`, `tests/e2e/**`, 統合時に必要な既存UIファイル | #3, #4, #5, #6 |
+| #7 統合とデモ導線 | `complete-demo-integration` | `server/main.go`, `docs/manual-debug.md`, 統合時に必要な既存UIファイル | #3, #4, #5, #6 |
 
 すべてのIssueは、自身の`openspec/changes/<change-id>/**`も専有します。`openspec/specs/**`、`.agents/**`、`openspec/config.yaml`、`go.mod`、`Makefile`、`.github/workflows/**`はコーディネータ専有です。
 
