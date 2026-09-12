@@ -122,10 +122,10 @@ func TestDecodeRejectsMissingOrDuplicatedHeader(t *testing.T) {
 		name   string
 		source string
 	}{
-		{name: "開始行がない", source: "2と2で黒着手\n"},
+		{name: "開始行がない", source: "「1」でルール版宣言\n2と2で黒着手\n"},
 		{
 			name:   "開始行が2回ある",
-			source: "「demo-1」と1で対局開始\n「demo-2」と2で対局開始\n2と2で黒着手\n",
+			source: "「1」でルール版宣言\n「demo-1」と1で対局開始\n「demo-2」と2で対局開始\n2と2で黒着手\n",
 		},
 	}
 
@@ -145,9 +145,9 @@ func TestDecodeRejectsMissingOrDuplicatedHeader(t *testing.T) {
 }
 
 func TestDecodeAppendsOutputCallToHarness(t *testing.T) {
-	source := "「demo-1」と1で対局開始\n2と2で黒着手\n"
+	source := "「1」でルール版宣言\n「demo-1」と1で対局開始\n2と2で黒着手\n"
 	decoder, runner := newFakeDecoder(t,
-		`{"version":"1","gameId":"demo-1","seed":1,"winner":"","moves":[{"player":"dark","type":"place","row":2,"col":2}],"headerCount":1,"footerCount":0}`)
+		`{"version":"1","rulesVersion":"1","ok":true,"gameId":"demo-1","seed":1,"winner":"","moves":[{"player":"dark","type":"place","row":2,"col":2}],"headerCount":1,"footerCount":0}`)
 
 	script, outline, err := decoder.Decode(context.Background(), source)
 	if err != nil {
@@ -174,9 +174,9 @@ func TestDecodeAppendsOutputCallToHarness(t *testing.T) {
 }
 
 func TestDecodeRejectsInvalidGameID(t *testing.T) {
-	source := "「demo 1」と1で対局開始\n2と2で黒着手\n"
+	source := "「1」でルール版宣言\n「demo 1」と1で対局開始\n2と2で黒着手\n"
 	decoder, _ := newFakeDecoder(t,
-		`{"version":"1","gameId":"demo 1","seed":1,"winner":"","moves":[{"player":"dark","type":"place","row":2,"col":2}],"headerCount":1,"footerCount":0}`)
+		`{"version":"1","rulesVersion":"1","ok":true,"gameId":"demo 1","seed":1,"winner":"","moves":[{"player":"dark","type":"place","row":2,"col":2}],"headerCount":1,"footerCount":0}`)
 
 	_, _, err := decoder.Decode(context.Background(), source)
 	var sourceErr *replay.SourceError
@@ -186,17 +186,17 @@ func TestDecodeRejectsInvalidGameID(t *testing.T) {
 	if sourceErr.Code != replay.CodeRecordMissingHeader {
 		t.Errorf("codeが違います: %q (%s)", sourceErr.Code, sourceErr.Message)
 	}
-	if sourceErr.Line != 1 {
+	if sourceErr.Line != 2 {
 		t.Errorf("行番号が違います: %d", sourceErr.Line)
 	}
 }
 
 func TestDecodeMapsGonakoDiagnosticToRecordLine(t *testing.T) {
-	source := "「demo-1」と1で対局開始\n2と2で黒着手\n白パス\n"
-	// ハーネス2行 + 区切りの空行1行。連結後の5行目 = 棋譜の2行目。
+	source := "「1」でルール版宣言\n「demo-1」と1で対局開始\n2と2で黒着手\n白パス\n"
+	// ハーネス2行 + 区切りの空行1行。連結後の6行目 = 棋譜の3行目。
 	runner := &fakeScriptRunner{err: &replay.ScriptExecError{
 		ExitCode: 1,
-		Stderr:   "[文法エラー]/tmp/x/record.nako3(5行目): 不完全な文です。",
+		Stderr:   "[文法エラー]/tmp/x/record.nako3(6行目): 不完全な文です。",
 	}}
 	decoder, err := replay.NewDecoder("●対局データ出力とは\nここまで\n", runner)
 	if err != nil {
@@ -211,7 +211,7 @@ func TestDecodeMapsGonakoDiagnosticToRecordLine(t *testing.T) {
 	if sourceErr.Code != replay.CodeRecordSyntaxError {
 		t.Errorf("codeが違います: %q", sourceErr.Code)
 	}
-	if sourceErr.Line != 2 {
+	if sourceErr.Line != 3 {
 		t.Errorf("棋譜側の行番号へ直せていません: %d", sourceErr.Line)
 	}
 	if sourceErr.Source != "2と2で黒着手" {
@@ -222,7 +222,7 @@ func TestDecodeMapsGonakoDiagnosticToRecordLine(t *testing.T) {
 func TestRecordErrorCodesCoverContract(t *testing.T) {
 	want := []string{
 		"record_syntax_error", "record_missing_header", "record_illegal_move",
-		"record_mismatch", "record_unfinished",
+		"record_mismatch", "record_unfinished", "record_unsupported_rules_version",
 	}
 	codes := replay.RecordErrorCodes()
 	if len(codes) != len(want) {
