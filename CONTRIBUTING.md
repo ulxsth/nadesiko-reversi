@@ -65,3 +65,5 @@ make check
 - `make check`が成功している
 - Issueの受け入れ条件をPR本文で確認している
 - archiveしていない
+
+GitHubでは`main`と`develop`に同じ保護設定を適用します。設定値の正本は`.github/branch-protection.json`です。
