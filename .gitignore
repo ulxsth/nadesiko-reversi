@@ -1,0 +1,6 @@
+.tools/
+web/vendor/
+dist/
+*.log
+.DS_Store
+

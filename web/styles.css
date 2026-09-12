@@ -1,0 +1,94 @@
+:root {
+  color-scheme: dark;
+  font-family: "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif;
+  background: #050906;
+  color: #f5fff8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 12% 15%, rgba(65, 205, 126, 0.18), transparent 28rem),
+    linear-gradient(145deg, #07110b, #020403 72%);
+}
+
+.layout {
+  width: min(1180px, calc(100% - 40px));
+  min-height: 100vh;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(520px, 1fr);
+  align-items: center;
+  gap: 56px;
+}
+
+.eyebrow {
+  margin: 0 0 18px;
+  color: #76d8a2;
+  font: 700 0.78rem/1.2 ui-monospace, monospace;
+  letter-spacing: 0.2em;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 5vw, 5rem);
+  line-height: 1.04;
+  letter-spacing: -0.06em;
+}
+
+.status {
+  min-height: 3em;
+  margin: 30px 0 18px;
+  color: #b6cabc;
+  line-height: 1.7;
+}
+
+.runtime-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.runtime-links a {
+  padding: 8px 12px;
+  border: 1px solid #274a35;
+  border-radius: 999px;
+  color: #bcebcf;
+  text-decoration: none;
+  font: 600 0.78rem/1 ui-monospace, monospace;
+}
+
+.board-shell {
+  padding: 16px;
+  border: 1px solid rgba(118, 216, 162, 0.24);
+  border-radius: 28px;
+  background: rgba(9, 20, 13, 0.78);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 17px;
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+    padding: 64px 0;
+    gap: 30px;
+  }
+
+  .board-shell {
+    width: min(100%, 640px);
+  }
+}
+

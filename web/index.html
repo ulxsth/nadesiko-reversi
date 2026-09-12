@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>なでしこ・グラデーションリバーシ</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./vendor/wnako3.js"></script>
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <p class="eyebrow">NADESIKO RULE ENGINE</p>
+        <h1>ことばでルールが変わる<br>グラデーションリバーシ</h1>
+        <p id="status" class="status">なでしこ3を起動中…</p>
+        <div class="runtime-links">
+          <a href="/healthz">Go health</a>
+          <a href="/api/runtime/smoke">gonako smoke</a>
+        </div>
+      </section>
+      <section class="board-shell" aria-label="ゲーム盤">
+        <canvas id="game-canvas" width="640" height="640"></canvas>
+      </section>
+    </main>
+    <script type="module">
+      const source = await fetch('./main.nako3').then((response) => {
+        if (!response.ok) throw new Error(`main.nako3: ${response.status}`)
+        return response.text()
+      })
+
+      try {
+        await navigator.nako3.runAsync(source, 'main.nako3')
+      } catch (error) {
+        document.querySelector('#status').textContent = `なでしこ実行エラー: ${error.message}`
+        console.error(error)
+      }
+    </script>
+  </body>
+</html>
