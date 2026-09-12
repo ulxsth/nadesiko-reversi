@@ -66,6 +66,17 @@
       </aside>
     </main>
 
+    <section
+      id="result-popup"
+      class="result-popup"
+      role="status"
+      aria-live="assertive"
+      aria-atomic="true"
+      hidden
+    >
+      <p id="result-popup-message" class="result-popup-message"></p>
+    </section>
+
     <script type="module">
       const source = await fetch('./main.nako3').then((response) => {
         if (!response.ok) throw new Error(`main.nako3: ${response.status}`)
