@@ -9,19 +9,92 @@
   </head>
   <body>
     <main class="layout">
-      <section class="hero">
+      <header class="hero">
         <p class="eyebrow">NADESIKO RULE ENGINE</p>
         <h1>ことばでルールが変わる<br>グラデーションリバーシ</h1>
-        <p id="status" class="status">なでしこ3を起動中…</p>
-        <div class="runtime-links">
-          <a href="/healthz">Go health</a>
-          <a href="/api/runtime/smoke">gonako smoke</a>
-        </div>
-      </section>
+      </header>
+
       <section class="board-shell" aria-label="ゲーム盤">
-        <canvas id="game-canvas" width="640" height="640"></canvas>
+        <canvas
+          id="game-canvas"
+          width="640"
+          height="640"
+          tabindex="0"
+          role="application"
+          aria-label="8行8列のグラデーションリバーシ盤。矢印キーでマスを選び、Enterまたはスペースで着手します。"
+        ></canvas>
+        <p id="board-hint" class="board-hint">
+          クリック・タップで着手します。キーボードは盤を選択してから矢印キーで移動し、Enterまたはスペースで着手、Pでパスです。
+        </p>
       </section>
+
+      <aside class="panel" aria-label="対局情報">
+        <section class="panel-block status-block">
+          <h2 class="panel-title">状態</h2>
+          <p id="status-phase" class="status-phase" role="status" aria-live="polite">読込中</p>
+          <p id="status-message" class="status-message">なでしこ3を起動しています…</p>
+        </section>
+
+        <section class="panel-block">
+          <h2 class="panel-title">次の駒色</h2>
+          <div class="next-color">
+            <span id="next-color-swatch" class="swatch" aria-hidden="true"></span>
+            <span id="next-color-value" class="next-color-value">—</span>
+          </div>
+          <dl class="meta">
+            <dt>手番</dt>
+            <dd id="meta-turn-player">—</dd>
+            <dt>手数</dt>
+            <dd id="meta-turn-number">—</dd>
+            <dt>合法手</dt>
+            <dd id="meta-legal-count">—</dd>
+            <dt>自分</dt>
+            <dd id="meta-self">—</dd>
+          </dl>
+        </section>
+
+        <section class="panel-block">
+          <h2 class="panel-title">操作</h2>
+          <div class="controls">
+            <label class="control">
+              <span>表示するfixture</span>
+              <select id="fixture-select">
+                <option value="new-game">開始直後</option>
+                <option value="early-game">序盤</option>
+                <option value="mid-game">中盤</option>
+                <option value="pass-required">パスのみ</option>
+                <option value="finished">終了</option>
+              </select>
+            </label>
+            <label class="control">
+              <span>自分のプレイヤー</span>
+              <select id="self-select">
+                <option value="dark">先手 dark</option>
+                <option value="light">後手 light</option>
+              </select>
+            </label>
+            <button id="pass-button" type="button" class="action">パスを送る</button>
+          </div>
+        </section>
+
+        <section class="panel-block">
+          <h2 class="panel-title">送信するcommand</h2>
+          <p class="panel-note">
+            サーバーの確定応答までは盤面を更新しません。ここに出るのは送信予定のJSONです。
+          </p>
+          <pre id="command-preview" class="command-preview">—</pre>
+        </section>
+
+        <section class="panel-block">
+          <h2 class="panel-title">runtime</h2>
+          <div class="runtime-links">
+            <a href="/healthz">Go health</a>
+            <a href="/api/runtime/smoke">gonako smoke</a>
+          </div>
+        </section>
+      </aside>
     </main>
+
     <script type="module">
       const source = await fetch('./main.nako3').then((response) => {
         if (!response.ok) throw new Error(`main.nako3: ${response.status}`)
@@ -31,7 +104,8 @@
       try {
         await navigator.nako3.runAsync(source, 'main.nako3')
       } catch (error) {
-        document.querySelector('#status').textContent = `なでしこ実行エラー: ${error.message}`
+        document.querySelector('#status-phase').textContent = 'エラー'
+        document.querySelector('#status-message').textContent = `なでしこ実行エラー: ${error.message}`
         console.error(error)
       }
     </script>

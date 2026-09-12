@@ -1,0 +1,179 @@
+{
+  "version": "1",
+  "gameId": "fixture-demo",
+  "board": [
+    null,
+    94,
+    26,
+    214,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    81,
+    82,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    80,
+    102,
+    81,
+    34,
+    18,
+    null,
+    null,
+    null,
+    99,
+    123,
+    115,
+    48,
+    null,
+    null,
+    null,
+    null,
+    113,
+    144,
+    102,
+    null,
+    null,
+    null,
+    136,
+    127,
+    98,
+    null,
+    155,
+    149,
+    251,
+    null,
+    173,
+    121,
+    null,
+    null,
+    null,
+    158,
+    null,
+    null,
+    163,
+    null,
+    null,
+    null,
+    83,
+    null,
+    null,
+    null
+  ],
+  "turnNumber": 24,
+  "currentPlayer": "dark",
+  "nextColor": 33,
+  "rngState": 557551588,
+  "consecutivePasses": 0,
+  "phase": "playing",
+  "winner": null,
+  "legalMoves": [
+    {
+      "row": 0,
+      "col": 0
+    },
+    {
+      "row": 0,
+      "col": 4
+    },
+    {
+      "row": 1,
+      "col": 1
+    },
+    {
+      "row": 1,
+      "col": 4
+    },
+    {
+      "row": 1,
+      "col": 5
+    },
+    {
+      "row": 1,
+      "col": 6
+    },
+    {
+      "row": 1,
+      "col": 7
+    },
+    {
+      "row": 2,
+      "col": 1
+    },
+    {
+      "row": 2,
+      "col": 7
+    },
+    {
+      "row": 3,
+      "col": 1
+    },
+    {
+      "row": 3,
+      "col": 6
+    },
+    {
+      "row": 4,
+      "col": 0
+    },
+    {
+      "row": 4,
+      "col": 1
+    },
+    {
+      "row": 4,
+      "col": 5
+    },
+    {
+      "row": 4,
+      "col": 6
+    },
+    {
+      "row": 4,
+      "col": 7
+    },
+    {
+      "row": 5,
+      "col": 3
+    },
+    {
+      "row": 5,
+      "col": 7
+    },
+    {
+      "row": 6,
+      "col": 2
+    },
+    {
+      "row": 6,
+      "col": 4
+    },
+    {
+      "row": 6,
+      "col": 6
+    },
+    {
+      "row": 7,
+      "col": 1
+    },
+    {
+      "row": 7,
+      "col": 2
+    },
+    {
+      "row": 7,
+      "col": 5
+    },
+    {
+      "row": 7,
+      "col": 6
+    }
+  ]
+}
