@@ -1,58 +1,47 @@
+/* 白黒の画面。色は背景の #e3dcd8 だけに使い、他は黒・白・灰で構成する。
+   角丸は使わない。 */
 :root {
-  color-scheme: dark;
-  --bg: #05100b;
-  --surface: #0c1c14;
-  --surface-raised: #123f2b;
-  --line: #1f5c40;
-  --accent: #76d8a2;
-  --accent-strong: #9af0c0;
-  --text: #e6f5ec;
-  --text-muted: #9ab8a8;
-  --danger: #ff9b8a;
-  --radius: 12px;
+  color-scheme: light;
+  --bg: #e3dcd8;
+  --ink: #000000;
+  --ink-mute: #6b6b6b;
+  --paper: #ffffff;
 }
 
 * {
   box-sizing: border-box;
+  border-radius: 0;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background: radial-gradient(circle at 20% 0%, #0e2a1c 0%, var(--bg) 55%);
-  color: var(--text);
-  font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
-  line-height: 1.7;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "DotGothic16", "Courier New", monospace;
+  font-size: 15px;
+  line-height: 1.8;
   min-height: 100vh;
 }
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
   grid-template-areas:
-    "hero hero"
+    "title title"
     "board panel";
-  gap: 24px;
-  max-width: 1120px;
+  gap: 20px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 32px 20px 48px;
+  padding: 28px 20px 40px;
 }
 
-.hero {
-  grid-area: hero;
-}
-
-.eyebrow {
+.title {
+  grid-area: title;
   margin: 0;
-  color: var(--accent);
-  font-size: 0.75rem;
-  letter-spacing: 0.22em;
-}
-
-.hero h1 {
-  margin: 4px 0 0;
-  font-size: clamp(1.5rem, 4vw, 2.4rem);
-  line-height: 1.3;
+  font-size: 1.4rem;
+  font-weight: normal;
+  letter-spacing: 0.08em;
 }
 
 .board-shell {
@@ -66,95 +55,88 @@ body {
   max-width: 640px;
   height: auto;
   aspect-ratio: 1 / 1;
-  border-radius: var(--radius);
-  background: #08120d;
+  border: 2px solid var(--ink);
+  background: var(--paper);
   touch-action: manipulation;
 }
 
 #game-canvas:focus-visible {
-  outline: 3px solid var(--accent-strong);
+  outline: 3px solid var(--ink);
   outline-offset: 3px;
-}
-
-.board-hint {
-  margin: 12px 0 0;
-  max-width: 640px;
-  color: var(--text-muted);
-  font-size: 0.85rem;
 }
 
 .panel {
   grid-area: panel;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
 }
 
 .panel-block {
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 12px 14px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
 }
 
 .panel-title {
-  margin: 0 0 8px;
-  color: var(--accent);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
 }
 
 .status-phase {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 1.15rem;
 }
 
 .status-message {
-  margin: 4px 0 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
+  margin: 0;
+  min-height: 1.8em;
+  color: var(--ink-mute);
+  font-size: 0.85rem;
 }
 
-.status-block[data-tone="error"] .status-phase {
-  color: var(--danger);
+/* エラーは色を持たないので、反転と罫線で伝える */
+.status-block[data-tone="error"] {
+  background: var(--ink);
+  color: var(--paper);
 }
 
-.status-block[data-tone="active"] .status-phase {
-  color: var(--accent-strong);
+.status-block[data-tone="error"] .status-message {
+  color: var(--paper);
 }
 
 .next-color {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .swatch {
-  width: 40px;
-  height: 40px;
-  border: 2px solid var(--line);
-  border-radius: 50%;
-  background: #444;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
 }
 
 .next-color-value {
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-variant-numeric: tabular-nums;
 }
 
 .meta {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 2px 12px;
-  margin: 12px 0 0;
-  font-size: 0.88rem;
+  gap: 0 12px;
+  margin: 10px 0 0;
+  font-size: 0.85rem;
 }
 
 .meta dt {
-  color: var(--text-muted);
+  color: var(--ink-mute);
 }
 
 .meta dd {
@@ -165,91 +147,72 @@ body {
 .controls {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .control {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--ink-mute);
 }
 
 .control select {
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-raised);
-  color: var(--text);
+  padding: 6px 8px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
   font: inherit;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 .action {
-  padding: 10px 14px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--accent-strong);
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
   font: inherit;
-  font-weight: 700;
   cursor: pointer;
 }
 
 .action:hover:not(:disabled) {
-  background: rgba(118, 216, 162, 0.12);
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .action:disabled {
-  border-color: var(--line);
-  color: var(--text-muted);
+  border-color: var(--ink-mute);
+  color: var(--ink-mute);
   cursor: not-allowed;
 }
 
 .control select:focus-visible,
-.action:focus-visible,
-.runtime-links a:focus-visible {
-  outline: 2px solid var(--accent-strong);
+.action:focus-visible {
+  outline: 3px solid var(--ink);
   outline-offset: 2px;
-}
-
-.panel-note {
-  margin: 0 0 8px;
-  color: var(--text-muted);
-  font-size: 0.8rem;
 }
 
 .command-preview {
   margin: 0;
-  padding: 10px;
-  max-height: 200px;
+  padding: 8px;
+  max-height: 190px;
   overflow: auto;
-  border-radius: 8px;
-  background: #061009;
-  color: var(--accent-strong);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
-  font-size: 0.78rem;
-  line-height: 1.5;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
-}
-
-.runtime-links {
-  display: flex;
-  gap: 16px;
-  font-size: 0.85rem;
-}
-
-.runtime-links a {
-  color: var(--accent);
 }
 
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "hero"
+      "title"
       "board"
       "panel";
   }
@@ -257,21 +220,15 @@ body {
 
 @media (max-width: 640px) {
   .layout {
-    padding: 20px 16px 36px;
-    gap: 18px;
+    padding: 18px 14px 32px;
+    gap: 14px;
   }
 
-  .panel-block {
-    padding: 14px;
+  .title {
+    font-size: 1.15rem;
   }
 
   .status-phase {
-    font-size: 1.1rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
+    font-size: 1rem;
   }
 }
