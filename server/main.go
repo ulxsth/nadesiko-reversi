@@ -1,27 +1,21 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
+
+	"github.com/ulxsth/nadesiko-reversi/server/internal/localgame"
+	gameruntime "github.com/ulxsth/nadesiko-reversi/server/internal/runtime"
 )
 
 type healthResponse struct {
 	Status      string `json:"status"`
 	GonakoReady bool   `json:"gonakoReady"`
-}
-
-type smokeResponse struct {
-	OK     bool   `json:"ok"`
-	Output string `json:"output,omitempty"`
-	Error  string `json:"error,omitempty"`
 }
 
 func main() {
@@ -34,28 +28,22 @@ func main() {
 	if gonakoBin == "" {
 		gonakoBin = filepath.Join(".tools", "bin", "gonako")
 	}
+	ruleFile := filepath.Join(*rulesDir, "game", "main.nako3")
+	rules, err := gameruntime.New(gameruntime.Config{
+		GonakoPath: gonakoBin,
+		RulesPath:  ruleFile,
+		Timeout:    5 * time.Second,
+	})
+	if err != nil {
+		log.Fatalf("ルールruntimeを初期化できません: %v", err)
+	}
+	game := localgame.NewService(rules)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		_, err := os.Stat(gonakoBin)
-		writeJSON(w, http.StatusOK, healthResponse{Status: "ok", GonakoReady: err == nil})
+		writeJSON(w, http.StatusOK, healthResponse{Status: "ok", GonakoReady: rules.Ready()})
 	})
-	mux.HandleFunc("GET /api/runtime/smoke", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-		defer cancel()
-
-		cmd := exec.CommandContext(ctx, gonakoBin, filepath.Join(*rulesDir, "smoke.nako3"))
-		output, err := cmd.CombinedOutput()
-		if ctx.Err() == context.DeadlineExceeded {
-			writeJSON(w, http.StatusGatewayTimeout, smokeResponse{Error: "gonako timed out"})
-			return
-		}
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, smokeResponse{Error: err.Error(), Output: strings.TrimSpace(string(output))})
-			return
-		}
-		writeJSON(w, http.StatusOK, smokeResponse{OK: true, Output: strings.TrimSpace(string(output))})
-	})
+	mux.Handle("POST /api/local/runtime", localgame.NewHandler(game))
 	mux.Handle("/", http.FileServer(http.Dir(*webDir)))
 
 	server := &http.Server{
@@ -83,4 +71,3 @@ func withHeaders(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-

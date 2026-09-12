@@ -1,94 +1,234 @@
+/* 白黒の画面。色は背景の #e3dcd8 だけに使い、他は黒・白・灰で構成する。
+   角丸は使わない。 */
 :root {
-  color-scheme: dark;
-  font-family: "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif;
-  background: #050906;
-  color: #f5fff8;
+  color-scheme: light;
+  --bg: #e3dcd8;
+  --ink: #000000;
+  --ink-mute: #6b6b6b;
+  --paper: #ffffff;
 }
 
 * {
   box-sizing: border-box;
+  border-radius: 0;
 }
 
 body {
-  min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 12% 15%, rgba(65, 205, 126, 0.18), transparent 28rem),
-    linear-gradient(145deg, #07110b, #020403 72%);
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "DotGothic16", "Courier New", monospace;
+  font-size: 15px;
+  line-height: 1.8;
+  min-height: 100vh;
 }
 
 .layout {
-  width: min(1180px, calc(100% - 40px));
-  min-height: 100vh;
-  margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(260px, 0.78fr) minmax(520px, 1fr);
-  align-items: center;
-  gap: 56px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  grid-template-areas:
+    "title title"
+    "board panel";
+  gap: 20px;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 20px 40px;
 }
 
-.eyebrow {
-  margin: 0 0 18px;
-  color: #76d8a2;
-  font: 700 0.78rem/1.2 ui-monospace, monospace;
-  letter-spacing: 0.2em;
-}
-
-h1 {
+.title {
+  grid-area: title;
   margin: 0;
-  font-size: clamp(2.4rem, 5vw, 5rem);
-  line-height: 1.04;
-  letter-spacing: -0.06em;
-}
-
-.status {
-  min-height: 3em;
-  margin: 30px 0 18px;
-  color: #b6cabc;
-  line-height: 1.7;
-}
-
-.runtime-links {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.runtime-links a {
-  padding: 8px 12px;
-  border: 1px solid #274a35;
-  border-radius: 999px;
-  color: #bcebcf;
-  text-decoration: none;
-  font: 600 0.78rem/1 ui-monospace, monospace;
+  font-size: 1.4rem;
+  font-weight: normal;
+  letter-spacing: 0.08em;
 }
 
 .board-shell {
-  padding: 16px;
-  border: 1px solid rgba(118, 216, 162, 0.24);
-  border-radius: 28px;
-  background: rgba(9, 20, 13, 0.78);
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.45);
+  grid-area: board;
+  min-width: 0;
 }
 
-canvas {
+#game-canvas {
   display: block;
   width: 100%;
+  max-width: 640px;
   height: auto;
-  border-radius: 17px;
-  cursor: crosshair;
+  aspect-ratio: 1 / 1;
+  border: 2px solid var(--ink);
+  background: var(--paper);
   touch-action: manipulation;
+}
+
+#game-canvas:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.panel {
+  grid-area: panel;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.panel-block {
+  padding: 12px 14px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+}
+
+.panel-title {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: var(--ink-mute);
+  letter-spacing: 0.12em;
+}
+
+.status-phase {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.status-message {
+  margin: 0;
+  min-height: 1.8em;
+  color: var(--ink-mute);
+  font-size: 0.85rem;
+}
+
+/* エラーは色を持たないので、反転と罫線で伝える */
+.status-block[data-tone="error"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.status-block[data-tone="error"] .status-message {
+  color: var(--paper);
+}
+
+.next-color {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.swatch {
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+}
+
+.next-color-value {
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 12px;
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+}
+
+.meta dt {
+  color: var(--ink-mute);
+}
+
+.meta dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--ink-mute);
+}
+
+.control select {
+  padding: 6px 8px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.action {
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.action:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.action:disabled {
+  border-color: var(--ink-mute);
+  color: var(--ink-mute);
+  cursor: not-allowed;
+}
+
+.control select:focus-visible,
+.action:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.command-preview {
+  margin: 0;
+  padding: 8px;
+  max-height: 190px;
+  overflow: auto;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 @media (max-width: 900px) {
   .layout {
-    grid-template-columns: 1fr;
-    padding: 64px 0;
-    gap: 30px;
-  }
-
-  .board-shell {
-    width: min(100%, 640px);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "title"
+      "board"
+      "panel";
   }
 }
 
+@media (max-width: 640px) {
+  .layout {
+    padding: 18px 14px 32px;
+    gap: 14px;
+  }
+
+  .title {
+    font-size: 1.15rem;
+  }
+
+  .status-phase {
+    font-size: 1rem;
+  }
+}

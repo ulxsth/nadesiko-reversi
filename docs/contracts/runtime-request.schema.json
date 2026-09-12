@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime-request.schema.json",
+  "title": "Gradient Reversi runtime request v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "action", "gameId", "seed"],
+      "properties": {
+        "version": {"const": "1"},
+        "action": {"const": "newGame"},
+        "gameId": {"type": "string", "minLength": 1},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "action", "state", "command"],
+      "properties": {
+        "version": {"const": "1"},
+        "action": {"const": "applyCommand"},
+        "state": {"$ref": "game-state.schema.json"},
+        "command": {"$ref": "common.schema.json#/$defs/command"}
+      }
+    }
+  ]
+}

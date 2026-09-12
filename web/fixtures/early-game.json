@@ -1,0 +1,139 @@
+{
+  "version": "1",
+  "gameId": "fixture-demo",
+  "board": [
+    null,
+    94,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    120,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    166,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    108,
+    255,
+    null,
+    null,
+    null,
+    null,
+    null,
+    129,
+    199,
+    105,
+    null,
+    null,
+    null,
+    null,
+    null,
+    182,
+    null,
+    133,
+    null,
+    null,
+    null,
+    null,
+    198,
+    null,
+    null,
+    null,
+    142,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "turnNumber": 8,
+  "currentPlayer": "dark",
+  "nextColor": 4,
+  "rngState": 70837908,
+  "consecutivePasses": 0,
+  "phase": "playing",
+  "winner": null,
+  "legalMoves": [
+    {
+      "row": 1,
+      "col": 3
+    },
+    {
+      "row": 2,
+      "col": 2
+    },
+    {
+      "row": 2,
+      "col": 4
+    },
+    {
+      "row": 2,
+      "col": 5
+    },
+    {
+      "row": 3,
+      "col": 2
+    },
+    {
+      "row": 3,
+      "col": 5
+    },
+    {
+      "row": 4,
+      "col": 1
+    },
+    {
+      "row": 4,
+      "col": 5
+    },
+    {
+      "row": 5,
+      "col": 1
+    },
+    {
+      "row": 5,
+      "col": 3
+    },
+    {
+      "row": 5,
+      "col": 5
+    },
+    {
+      "row": 6,
+      "col": 2
+    },
+    {
+      "row": 6,
+      "col": 4
+    },
+    {
+      "row": 7,
+      "col": 0
+    },
+    {
+      "row": 7,
+      "col": 6
+    }
+  ]
+}

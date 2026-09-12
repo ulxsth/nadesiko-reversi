@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "action": "newGame",
+  "gameId": "local-demo",
+  "seed": 1
+}

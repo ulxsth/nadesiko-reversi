@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "game-state.schema.json",
+  "title": "Gradient Reversi game state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "gameId",
+    "board",
+    "turnNumber",
+    "currentPlayer",
+    "nextColor",
+    "rngState",
+    "consecutivePasses",
+    "phase",
+    "winner",
+    "legalMoves"
+  ],
+  "properties": {
+    "version": {"const": "1"},
+    "gameId": {"type": "string", "minLength": 1},
+    "board": {"$ref": "common.schema.json#/$defs/board"},
+    "turnNumber": {"type": "integer", "minimum": 0},
+    "currentPlayer": {"$ref": "common.schema.json#/$defs/player"},
+    "nextColor": {"type": "integer", "minimum": 0, "maximum": 255},
+    "rngState": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+    "consecutivePasses": {"type": "integer", "minimum": 0, "maximum": 2},
+    "phase": {"enum": ["playing", "finished"]},
+    "winner": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "common.schema.json#/$defs/player"}
+      ]
+    },
+    "legalMoves": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "common.schema.json#/$defs/position"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"phase": {"const": "playing"}}},
+      "then": {"properties": {"winner": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"phase": {"const": "finished"}}},
+      "then": {
+        "properties": {
+          "winner": {"$ref": "common.schema.json#/$defs/player"},
+          "legalMoves": {"maxItems": 0}
+        }
+      }
+    }
+  ]
+}

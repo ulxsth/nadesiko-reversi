@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "action": "newGame",
+  "gameId": "fixture-new-game",
+  "seed": 1
+}

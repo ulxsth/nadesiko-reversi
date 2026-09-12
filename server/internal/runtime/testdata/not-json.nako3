@@ -1,0 +1,2 @@
+# stdoutへJSONでない文字列を出すstub。DecodeErrorの再現に使う。
+「これはJSONではありません」と表示。
