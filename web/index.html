@@ -51,28 +51,16 @@
         <section class="panel-block">
           <div class="controls">
             <label class="control">
-              <span>fixture</span>
-              <select id="fixture-select">
-                <option value="new-game">開始直後</option>
-                <option value="early-game">序盤</option>
-                <option value="mid-game">中盤</option>
-                <option value="pass-required">パスのみ</option>
-                <option value="finished">終了</option>
-              </select>
+              <span>seed</span>
+              <input id="seed-input" type="number" min="0" max="4294967295" step="1" value="1" inputmode="numeric">
             </label>
-            <label class="control">
-              <span>自分</span>
-              <select id="self-select">
-                <option value="dark">先手 dark</option>
-                <option value="light">後手 light</option>
-              </select>
-            </label>
+            <button id="new-game-button" type="button" class="action">新しい対局</button>
             <button id="pass-button" type="button" class="action" disabled>パス</button>
           </div>
         </section>
 
         <section class="panel-block">
-          <h2 class="panel-title">command</h2>
+          <h2 class="panel-title">request</h2>
           <pre id="command-preview" class="command-preview">—</pre>
         </section>
       </aside>
