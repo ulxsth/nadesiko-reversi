@@ -9,6 +9,20 @@
 3. 最新の`origin/develop`から`feature/<change-id>`を作る。
 4. OpenSpec changeはIssueと同じ`change-id`を使う。
 
+## Worktree運用
+
+- 実装AgentはIssueごとに専用worktreeを使用する。
+- 1 Issue＝1 `change-id`＝1 branch＝1 worktree＝1 Agentとする。
+- worktreeとbranchは最新の`origin/develop`から作る。
+- 複数Agentが同じcheckoutやworktreeを共有してはならない。
+- primary checkoutは、Issue整理、PRマージ、OpenSpec archiveなどコーディネータ作業専用とする。
+- 実装Agentは専用worktree内でのみ編集、テスト、commit、pushを行う。
+- 別worktreeでcheckout済みのbranchを移動、削除、再利用してはならない。
+- GitリポジトリにCodex taskを作る場合は、原則としてworktree環境を選ぶ。
+- `.tools`が存在しないworktreeでは、テスト前に`make bootstrap`を実行する。
+- PRマージ後、worktreeがcleanであることを確認してから削除する。
+- 未commit変更があるworktreeを`--force`で削除してはならない。
+
 ## 編集範囲
 
 - README.md は人間が編集するので手を付けない。
