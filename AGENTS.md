@@ -11,6 +11,7 @@
 
 ## 編集範囲
 
+- README.md は人間が編集するので手を付けない。
 - 担当Issueに列挙された専有パスだけを編集する。
 - 別の進行中Issueが専有するパスを編集しない。
 - `go.mod`、`Makefile`、`openspec/config.yaml`、`.github/workflows/**`、`server/main.go`など共有ファイルが必要になった場合は、勝手に変更せずIssueへブロッカーとして記録する。
