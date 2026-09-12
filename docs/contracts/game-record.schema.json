@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "game-record.schema.json",
+  "title": "Gradient Reversi game record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "gameId",
+    "seed",
+    "startedAt",
+    "endedAt",
+    "winner",
+    "commands",
+    "finalState"
+  ],
+  "properties": {
+    "version": {"const": "1"},
+    "gameId": {"type": "string", "minLength": 1},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+    "startedAt": {"type": "string", "format": "date-time"},
+    "endedAt": {"type": "string", "format": "date-time"},
+    "winner": {"$ref": "common.schema.json#/$defs/player"},
+    "commands": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/command"}
+    },
+    "finalState": {"$ref": "game-state.schema.json"}
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "common.schema.json",
+  "$defs": {
+    "player": {
+      "enum": ["dark", "light"]
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["row", "col"],
+      "properties": {
+        "row": {"type": "integer", "minimum": 0, "maximum": 7},
+        "col": {"type": "integer", "minimum": 0, "maximum": 7}
+      }
+    },
+    "board": {
+      "type": "array",
+      "minItems": 64,
+      "maxItems": 64,
+      "items": {
+        "oneOf": [
+          {"type": "null"},
+          {"type": "integer", "minimum": 0, "maximum": 255}
+        ]
+      }
+    },
+    "command": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["commandId", "type", "player", "expectedTurn", "row", "col"],
+          "properties": {
+            "commandId": {"type": "string", "minLength": 1},
+            "type": {"const": "place"},
+            "player": {"$ref": "#/$defs/player"},
+            "expectedTurn": {"type": "integer", "minimum": 0},
+            "row": {"type": "integer", "minimum": 0, "maximum": 7},
+            "col": {"type": "integer", "minimum": 0, "maximum": 7}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["commandId", "type", "player", "expectedTurn"],
+          "properties": {
+            "commandId": {"type": "string", "minLength": 1},
+            "type": {"const": "pass"},
+            "player": {"$ref": "#/$defs/player"},
+            "expectedTurn": {"type": "integer", "minimum": 0}
+          }
+        }
+      ]
+    }
+  }
+}
