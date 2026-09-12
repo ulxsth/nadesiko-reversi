@@ -12,7 +12,7 @@
 | `server/internal/match/**` | 待機、2人マッチ、手番、盤面の確定 | Go |
 | `server/internal/replay/**` | 対局ログの保存・取得 | Go |
 | `web/**` | 盤面描画、入力、接続状態、再生UI | ブラウザ版なでしこ3 |
-| `tests/e2e/**` | ブラウザ・サーバー・gonako間の受け入れ検証 | 統合テスト |
+| `docs/manual-debug.md` | ブラウザ・サーバー・gonako間の受け入れ確認 | 人間によるデバッグ |
 
 ## 依存方向
 
@@ -25,6 +25,8 @@ web ──JSON/WebSocket──> server/protocol ──> server/match
 ```
 
 サーバーを盤面の正本とし、クライアントは確定イベントを受け取って描画します。ルールは副作用のない入力JSON→出力JSONとして切り出し、同じ対局ログを再実行すれば同じ盤面になる構成を目指します。
+
+常時実行する自動テストは、ルール・protocol・runtime・serviceのpackage testへ限定します。実server、gonako、ブラウザをまたぐ確認は、変更の影響範囲に応じて[手動デバッグ手順](./manual-debug.md)を人が実施します。
 
 ## P0の切り方
 
