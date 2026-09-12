@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime-response.schema.json",
+  "title": "Gradient Reversi runtime response v1",
+  "$defs": {
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["row", "col", "color"],
+      "properties": {
+        "row": {"type": "integer", "minimum": 0, "maximum": 7},
+        "col": {"type": "integer", "minimum": 0, "maximum": 7},
+        "color": {"type": "integer", "minimum": 0, "maximum": 255}
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commandId", "type", "player", "turnNumber"],
+      "properties": {
+        "commandId": {"type": "string", "minLength": 1},
+        "type": {"enum": ["placed", "passed"]},
+        "player": {"$ref": "common.schema.json#/$defs/player"},
+        "turnNumber": {"type": "integer", "minimum": 1},
+        "row": {"type": "integer", "minimum": 0, "maximum": 7},
+        "col": {"type": "integer", "minimum": 0, "maximum": 7},
+        "placedColor": {"type": "integer", "minimum": 0, "maximum": 255},
+        "changes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/change"}
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_json",
+            "unsupported_version",
+            "invalid_request",
+            "invalid_state",
+            "invalid_command",
+            "invalid_coordinate",
+            "occupied",
+            "illegal_move",
+            "not_your_turn",
+            "stale_turn",
+            "pass_not_allowed",
+            "game_finished"
+          ]
+        },
+        "message": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "ok", "state"],
+      "properties": {
+        "version": {"const": "1"},
+        "ok": {"const": true},
+        "state": {"$ref": "game-state.schema.json"},
+        "event": {"$ref": "#/$defs/event"}
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "ok", "error"],
+      "properties": {
+        "version": {"const": "1"},
+        "ok": {"const": false},
+        "error": {"$ref": "#/$defs/error"},
+        "state": {"$ref": "game-state.schema.json"}
+      }
+    }
+  ]
+}
