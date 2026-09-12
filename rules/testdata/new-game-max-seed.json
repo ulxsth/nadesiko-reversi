@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "action": "newGame",
+  "gameId": "fixture-max-seed",
+  "seed": 4294967295
+}
