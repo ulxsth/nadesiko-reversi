@@ -1,0 +1,54 @@
+schema: spec-driven
+
+context: |
+  Language: Japanese. All artifacts must be written in Japanese.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Product: A browser-based recreation of the gradient Reversi experience from
+  https://github.com/2509-hackz-ichthyo/main, implemented primarily in Nadesiko.
+  Pieces have grayscale values from 0 through 255. A legal move brackets pieces
+  along at least one of eight directions. Bracketed colors are transformed, and
+  the winner is determined from the final board's grayscale balance.
+
+  Runtime: Nadesiko 3.8.1 in the browser, Go 1.26.0 HTTP/WebSocket server, and
+  gonako 3.8.4 for server-side Nadesiko execution. Tooling runs in WSL2 Ubuntu
+  24.04 and is pinned inside the repository's ignored .tools directory.
+
+  Branches: main is releasable, develop is the integration branch, and work uses
+  feature/<change-id>. Pull requests from feature branches target develop.
+  Release pull requests target main from develop.
+
+  Parallel work: One GitHub Issue equals one OpenSpec change, one feature branch,
+  and one owner. Every change must declare exclusive owned paths. Agents must not
+  edit paths owned by another active Issue. Shared entrypoints are changed only by
+  a downstream integration Issue after its dependencies merge.
+
+  OpenSpec lifecycle: Feature pull requests include openspec/changes/<change-id>/
+  and code, but do not archive the change. After merge to develop, the coordinator
+  archives changes serially so openspec/specs remains a single-writer area.
+
+  Verification: Run make check in WSL. It builds the Go server, tests gonako,
+  runs Go tests, and validates all OpenSpec artifacts in strict mode.
+
+rules:
+  proposal:
+    - Include a Non-goals section.
+    - State the GitHub Issue, feature branch, dependencies, and exclusively owned paths.
+  design:
+    - Explain how the design stays inside the Issue's owned paths.
+    - Record integration points without editing another active Issue's paths.
+  tasks:
+    - Break implementation into independently verifiable chunks of at most two hours.
+    - End with make check and explicit acceptance-criteria verification.
+  specs:
+    - Cover success, invalid input, and boundary behavior with scenarios.
+
+operations:
+  apply:
+    guidance:
+      - Edit only paths reserved by the corresponding GitHub Issue.
+      - Keep the feature branch rebased on or merged from the latest develop before opening the pull request.
+  archive:
+    guidance:
+      - Archive only after the feature pull request has merged to develop.
+      - The coordinator archives one merged change at a time and pushes the result before archiving the next.

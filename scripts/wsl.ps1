@@ -1,6 +1,6 @@
 param(
   [Parameter(Position = 0)]
-  [ValidateSet("bootstrap", "build", "check", "dev", "clean")]
+  [ValidateSet("bootstrap", "build", "check", "spec-init", "spec-check", "dev", "clean")]
   [string]$Task = "dev"
 )
 
@@ -14,4 +14,3 @@ if (-not $wslPath) {
 
 & wsl.exe -d Ubuntu-24.04 -e bash --noprofile --norc -c "cd -- '$wslPath' && exec make $Task"
 exit $LASTEXITCODE
-

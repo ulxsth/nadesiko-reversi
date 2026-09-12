@@ -1,0 +1,59 @@
+name: P0実装タスク
+description: Agentへ排他的に割り当てるP0タスク
+title: "[P0] "
+labels:
+  - priority:p0
+body:
+  - type: input
+    id: change-id
+    attributes:
+      label: OpenSpec change-id
+      description: featureブランチ名にも使うkebab-caseのID
+      placeholder: implement-example
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: ゴール
+    validations:
+      required: true
+  - type: textarea
+    id: paths
+    attributes:
+      label: 専有パス
+      description: このIssueだけが変更してよいパスを列挙する
+      placeholder: |
+        - src/example/**
+        - openspec/changes/implement-example/**
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 依存Issue
+      description: 作業開始前にdevelopへマージ済みであるべきIssue
+      placeholder: "#1"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 受け入れ条件
+      placeholder: |
+        - [ ] 外部から観測できる条件
+        - [ ] 境界値・異常系の条件
+        - [ ] make checkが成功する
+    validations:
+      required: true
+  - type: checkboxes
+    id: workflow
+    attributes:
+      label: 作業規約
+      options:
+        - label: 最新のdevelopからfeature/<change-id>を作る
+          required: true
+        - label: OpenSpec changeとコードを同じPRに含める
+          required: true
+        - label: feature PRではOpenSpec changeをarchiveしない
+          required: true
