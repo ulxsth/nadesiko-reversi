@@ -79,14 +79,6 @@ body {
   background: var(--paper);
 }
 
-.panel-title {
-  margin: 0 0 6px;
-  font-size: 0.8rem;
-  font-weight: normal;
-  color: var(--ink-mute);
-  letter-spacing: 0.12em;
-}
-
 .status-phase {
   margin: 0;
   font-size: 1.15rem;
@@ -116,9 +108,11 @@ body {
 }
 
 .swatch {
-  width: 34px;
-  height: 34px;
+  flex: none;
+  width: 64px;
+  height: 64px;
   border: 2px solid var(--ink);
+  border-radius: 50%;
   background: var(--paper);
 }
 
@@ -191,21 +185,6 @@ body {
 .action:focus-visible {
   outline: 3px solid var(--ink);
   outline-offset: 2px;
-}
-
-.command-preview {
-  margin: 0;
-  padding: 8px;
-  max-height: 190px;
-  overflow: auto;
-  border: 1px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 0.75rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 
 .result-popup[hidden] {
