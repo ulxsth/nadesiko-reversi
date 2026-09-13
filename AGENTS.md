@@ -39,6 +39,7 @@
 - feature PRには`openspec/changes/<change-id>/**`を含める。
 - featureブランチではarchiveしない。
 - archiveは`develop`へのマージ後にコーディネータが直列実行する。
+- 完了済みchangeは差分specを本体specへ同期・検証してからarchiveする。この通常フローは都度確認せず進め、同期できない場合はarchiveせず報告する。
 
 ## 完了条件
 
