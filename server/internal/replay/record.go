@@ -14,6 +14,10 @@ import (
 // Version は棋譜形式のversion。contractのenvelope versionと揃える。
 const Version = protocol.Version
 
+// RulesVersion はこのサーバーが再生できるルール版。棋譜の宣言行と突き合わせる。
+// ルールの振る舞いが変わったらここを上げ、古い棋譜は明示的に拒否する。
+const RulesVersion = "1"
+
 // Move は棋譜1手分の指し手。
 // contractのcommandからcommandIdとexpectedTurnを除いたもので、
 // この2つは再生時のturn順から一意に決まるため棋譜には書かない。
@@ -99,6 +103,16 @@ type Script struct {
 	HeaderCount int `json:"headerCount"`
 	// FooterCount は終了行の出現回数。0は進行中の記録。
 	FooterCount int `json:"footerCount"`
+	// RulesVersion は版宣言行が示すルール版。
+	RulesVersion string `json:"rulesVersion"`
+	// VersionCount は版宣言行の出現回数。1以外はrecord_missing_header。
+	VersionCount int `json:"versionCount"`
+	// OK はハーネスが全手を適用できたかどうか。
+	OK bool `json:"ok"`
+	// Failure は適用が止まった原因。OKが真のときはnil。
+	Failure *ScriptFailure `json:"error,omitempty"`
+	// Frames は初期局面を先頭に、各手の適用後stateを順に並べたもの。
+	Frames []ScriptFrame `json:"frames"`
 	// StartedAt と EndedAt はヘッダ注釈から読む。棋譜本体には現れない。
 	StartedAt string `json:"-"`
 	EndedAt   string `json:"-"`
@@ -109,16 +123,32 @@ func (s Script) Finished() bool {
 	return s.FooterCount == 1
 }
 
+// ScriptFrame はハーネスが返す、ある時点の確定state。
+type ScriptFrame struct {
+	TurnNumber int             `json:"turnNumber"`
+	MoveNumber int             `json:"moveNumber"`
+	State      protocol.State  `json:"state"`
+	Event      *protocol.Event `json:"event,omitempty"`
+}
+
+// ScriptFailure はハーネスが適用を止めた原因。ルール側のcodeをそのまま持つ。
+type ScriptFailure struct {
+	MoveNumber int                `json:"moveNumber"`
+	Code       protocol.ErrorCode `json:"code"`
+	Message    string             `json:"message"`
+}
+
 // Record はcontractのgame record v1。再生で確定した最終stateを含む。
 type Record struct {
-	Version    string             `json:"version"`
-	GameID     string             `json:"gameId"`
-	Seed       uint32             `json:"seed"`
-	StartedAt  string             `json:"startedAt"`
-	EndedAt    string             `json:"endedAt"`
-	Winner     protocol.Player    `json:"winner"`
-	Commands   []protocol.Command `json:"commands"`
-	FinalState protocol.State     `json:"finalState"`
+	Version      string             `json:"version"`
+	RulesVersion string             `json:"rulesVersion"`
+	GameID       string             `json:"gameId"`
+	Seed         uint32             `json:"seed"`
+	StartedAt    string             `json:"startedAt"`
+	EndedAt      string             `json:"endedAt"`
+	Winner       protocol.Player    `json:"winner"`
+	Commands     []protocol.Command `json:"commands"`
+	FinalState   protocol.State     `json:"finalState"`
 }
 
 // Script はrecordから棋譜ソース用の対局データを取り出す。
@@ -128,13 +158,14 @@ func (r Record) Script() Script {
 		moves = append(moves, MoveFromCommand(command))
 	}
 	return Script{
-		Version:   Version,
-		GameID:    r.GameID,
-		Seed:      r.Seed,
-		StartedAt: r.StartedAt,
-		EndedAt:   r.EndedAt,
-		Winner:    r.Winner,
-		Moves:     moves,
+		Version:      Version,
+		RulesVersion: RulesVersion,
+		GameID:       r.GameID,
+		Seed:         r.Seed,
+		StartedAt:    r.StartedAt,
+		EndedAt:      r.EndedAt,
+		Winner:       r.Winner,
+		Moves:        moves,
 	}
 }
 

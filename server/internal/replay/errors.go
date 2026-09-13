@@ -21,6 +21,8 @@ const (
 	CodeRecordMismatch RecordErrorCode = "record_mismatch"
 	// CodeRecordUnfinished は完了記録として読んだが終了行が無い。
 	CodeRecordUnfinished RecordErrorCode = "record_unfinished"
+	// CodeRecordUnsupportedRulesVersion は棋譜が宣言したルール版に対応していない。
+	CodeRecordUnsupportedRulesVersion RecordErrorCode = "record_unsupported_rules_version"
 )
 
 // recordErrorCodes は契約が定義する全codeを宣言順に保持する。
@@ -30,6 +32,7 @@ var recordErrorCodes = []RecordErrorCode{
 	CodeRecordIllegalMove,
 	CodeRecordMismatch,
 	CodeRecordUnfinished,
+	CodeRecordUnsupportedRulesVersion,
 }
 
 // RecordErrorCodes は契約が定義する全codeの複製を返す。

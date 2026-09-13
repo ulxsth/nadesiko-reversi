@@ -65,6 +65,14 @@ func HeaderLines(startedAt, endedAt string) []string {
 	return lines
 }
 
+// RulesVersionLine はルール版宣言行を返す。開始行の前に1回だけ書く。
+//
+// 棋譜が前提とするルール版を棋譜自身へ持たせることで、ルールが変わった後でも
+// 古い棋譜を黙って誤再生せず、明示的に拒否できる。
+func RulesVersionLine() string {
+	return fmt.Sprintf("「%s」でルール版宣言", RulesVersion)
+}
+
 // StartLine は開始行を返す。newGameの直後に1回だけ書く。
 func StartLine(gameID string, seed uint32) (string, error) {
 	if err := ValidateGameID(gameID); err != nil {
@@ -135,6 +143,9 @@ func EncodeResult(result *Result) (string, error) {
 		out.WriteString(line)
 		out.WriteString("\n")
 	}
+	out.WriteString("\n")
+
+	out.WriteString(RulesVersionLine())
 	out.WriteString("\n")
 
 	startLine, err := StartLine(script.GameID, script.Seed)
