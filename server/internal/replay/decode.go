@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,11 +15,12 @@ import (
 
 // 契約の文法に対応する行のパターン。注釈は行末のコメントとして扱う。
 var (
-	startLinePattern = regexp.MustCompile(`^「([^」]*)」と(\d+)で対局開始\s*(?:#.*)?$`)
-	placeLinePattern = regexp.MustCompile(`^([0-7])と([0-7])で(黒|白)着手\s*(?:#(.*))?$`)
-	passLinePattern  = regexp.MustCompile(`^(黒|白)パス\s*(?:#.*)?$`)
-	endLinePattern   = regexp.MustCompile(`^「(黒|白)」で対局終了\s*(?:#.*)?$`)
-	commentPattern   = regexp.MustCompile(`^#(.*)$`)
+	rulesVersionLinePattern = regexp.MustCompile(`^「([^」]*)」でルール版宣言\s*(?:#.*)?$`)
+	startLinePattern        = regexp.MustCompile(`^「([^」]*)」と(\d+)で対局開始\s*(?:#.*)?$`)
+	placeLinePattern        = regexp.MustCompile(`^([0-7])と([0-7])で(黒|白)着手\s*(?:#(.*))?$`)
+	passLinePattern         = regexp.MustCompile(`^(黒|白)パス\s*(?:#.*)?$`)
+	endLinePattern          = regexp.MustCompile(`^「(黒|白)」で対局終了\s*(?:#.*)?$`)
+	commentPattern          = regexp.MustCompile(`^#(.*)$`)
 
 	// 着手行の注釈。厳密照合で再生結果と突き合わせる。
 	placeAnnotationPattern = regexp.MustCompile(`色(\d+)、(\d+)個変換`)
@@ -28,6 +30,12 @@ var (
 
 // outputCall は棋譜の末尾へ足す、読み取り結果の出力呼び出し。
 const outputCall = "対局データ出力"
+
+// harnessImportPattern は再生ハーネスがルール本体を取り込む行。
+//
+// 連結したソースは一時領域で実行するため、ハーネスに書かれた相対パスのままでは
+// 解決できない。ハーネスを読み込む時点で絶対パスへ書き換える。
+var harnessImportPattern = regexp.MustCompile(`(?m)^!「([^」]+)」を取り込む[ \t]*$`)
 
 // MoveLine は棋譜中の1手と、その行番号・注釈の対応。
 type MoveLine struct {
@@ -47,11 +55,17 @@ type MoveLine struct {
 
 // Outline は棋譜を行単位で読んだ結果。文法検査と行番号の対応に使う。
 type Outline struct {
-	MoveLines   []MoveLine
-	StartedAt   string
-	EndedAt     string
-	HeaderLines int
-	FooterLines int
+	MoveLines []MoveLine
+	StartedAt string
+	EndedAt   string
+	// RulesVersion は版宣言行が示すルール版。行が無ければ空。
+	RulesVersion string
+	// RulesVersionLine は版宣言行の行番号。無ければ0。
+	RulesVersionLine int
+	// RulesVersionLines は版宣言行の出現回数。1以外はrecord_missing_header。
+	RulesVersionLines int
+	HeaderLines       int
+	FooterLines       int
 }
 
 // Scan は棋譜ソースを契約の文法で走査する。
@@ -79,6 +93,12 @@ func Scan(source string) (*Outline, error) {
 		}
 
 		switch {
+		case rulesVersionLinePattern.MatchString(text):
+			outline.RulesVersionLines++
+			if outline.RulesVersionLine == 0 {
+				outline.RulesVersionLine = lineNumber
+				outline.RulesVersion = rulesVersionLinePattern.FindStringSubmatch(text)[1]
+			}
 		case startLinePattern.MatchString(text):
 			outline.HeaderLines++
 		case endLinePattern.MatchString(text):
@@ -121,16 +141,44 @@ type Decoder struct {
 	runner  ScriptRunner
 }
 
-// LoadHarness は再生ハーネスのソースを読む。
+// LoadHarness は再生ハーネスのソースを読み、ルール本体の取り込み行を絶対パスへ直す。
+//
+// ハーネスと棋譜を連結したソースはOSの一時領域で実行するので、ハーネスに書かれた
+// 相対パスはそのままでは解決できない。ルール本体は読み取りしかしないため、
+// 読み取り専用の配置のままで動く。
 func LoadHarness(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("再生ハーネスを読めません: %w", err)
 	}
-	if !strings.Contains(string(data), "●"+outputCall+"とは") {
+	source := string(data)
+	if !strings.Contains(source, "●"+outputCall+"とは") {
 		return "", fmt.Errorf("再生ハーネスに%sがありません: %s", outputCall, path)
 	}
-	return string(data), nil
+
+	baseDir, err := filepath.Abs(filepath.Dir(path))
+	if err != nil {
+		return "", fmt.Errorf("再生ハーネスの位置を解決できません: %w", err)
+	}
+
+	matches := harnessImportPattern.FindAllStringSubmatch(source, -1)
+	if len(matches) != 1 {
+		return "", fmt.Errorf("再生ハーネスの取り込み行はちょうど1行必要です: %d行", len(matches))
+	}
+
+	target := matches[0][1]
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(baseDir, target)
+	}
+	if _, err := os.Stat(target); err != nil {
+		return "", fmt.Errorf("ルール本体が見つかりません: %s", target)
+	}
+	// 取り込み行はなでしこの「」で囲むため、閉じ括弧を含むパスは表現できない。
+	if strings.ContainsAny(target, "「」\n") {
+		return "", fmt.Errorf("ルール本体のパスに使えない文字があります: %s", target)
+	}
+
+	return harnessImportPattern.ReplaceAllString(source, "!「"+target+"」を取り込む"), nil
 }
 
 // NewDecoder はハーネスのソースとscript runnerからdecoderを作る。
@@ -163,6 +211,24 @@ func (d *Decoder) Decode(ctx context.Context, source string) (*Script, *Outline,
 		return nil, nil, &SourceError{
 			Code:    CodeRecordSyntaxError,
 			Message: fmt.Sprintf("終了行が2回以上あります: %d回", outline.FooterLines),
+		}
+	}
+	// 版の検査は実行前に行う。未対応の棋譜へルールを当てても意味がないので、
+	// gonakoを起動する前に行番号つきで落とす。
+	if outline.RulesVersionLines != 1 {
+		return nil, nil, &SourceError{
+			Code:    CodeRecordMissingHeader,
+			Line:    outline.RulesVersionLine,
+			Source:  lineAt(source, outline.RulesVersionLine),
+			Message: fmt.Sprintf("ルール版宣言行はちょうど1回必要です: %d回", outline.RulesVersionLines),
+		}
+	}
+	if outline.RulesVersion != RulesVersion {
+		return nil, nil, &SourceError{
+			Code:    CodeRecordUnsupportedRulesVersion,
+			Line:    outline.RulesVersionLine,
+			Source:  lineAt(source, outline.RulesVersionLine),
+			Message: fmt.Sprintf("対応していないルール版です: %q (このサーバーは%qを再生できます)", outline.RulesVersion, RulesVersion),
 		}
 	}
 
@@ -198,6 +264,15 @@ func (d *Decoder) Decode(ctx context.Context, source string) (*Script, *Outline,
 		return nil, nil, &SourceError{
 			Code:    CodeRecordSyntaxError,
 			Message: fmt.Sprintf("対応していない棋譜バージョンです: %q", script.Version),
+		}
+	}
+	// 行検査とハーネスの報告がずれたら、棋譜ではなくハーネス側の不整合を疑う。
+	if script.RulesVersion != outline.RulesVersion {
+		return nil, nil, &SourceError{
+			Code:    CodeRecordUnsupportedRulesVersion,
+			Line:    outline.RulesVersionLine,
+			Source:  lineAt(source, outline.RulesVersionLine),
+			Message: fmt.Sprintf("ルール版の読み取りが一致しません: 行=%q 実行=%q", outline.RulesVersion, script.RulesVersion),
 		}
 	}
 	if err := ValidateGameID(script.GameID); err != nil {

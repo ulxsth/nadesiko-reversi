@@ -69,7 +69,7 @@ func newReplayer(t *testing.T) *replay.Replayer {
 	if err != nil {
 		t.Fatalf("decoderを作れません: %v", err)
 	}
-	replayer, err := replay.NewReplayer(decoder, newRuleRunner(t))
+	replayer, err := replay.NewReplayer(decoder)
 	if err != nil {
 		t.Fatalf("replayerを作れません: %v", err)
 	}
@@ -99,6 +99,7 @@ func playGame(t *testing.T, ruleRunner runtime.Runner, gameID string, seed uint3
 	if err != nil {
 		t.Fatalf("開始行を作れません: %v", err)
 	}
+	lines = append(lines, replay.RulesVersionLine())
 	lines = append(lines, startLine, "")
 
 	pick := uint64(20260912)
@@ -196,16 +197,19 @@ func TestHarnessReadsContractExample(t *testing.T) {
 		"# 開始 2026-09-12T21:30:00+09:00",
 		"# 終了 2026-09-12T21:44:12+09:00",
 		"",
+		"「1」でルール版宣言",
 		"「demo-1」と1で対局開始",
 		"",
-		"2と2で黒着手    # 色60、3個変換",
-		"2と3で白着手    # 色94、1個変換",
-		"白パス",
+		"2と5で黒着手    # 色60、1個変換",
+		"5と4で白着手    # 色94、1個変換",
+		"6と4で黒着手    # 色129、2個変換",
+		"# …（中略）…",
 		"",
 		"「白」で対局終了   # 61手、色合計8891、駒64",
 	}, "\n")
 
-	// 途中局面までの再生なので終局と注釈は確かめない
+	// 途中局面までの再生なので終局と注釈は確かめない。
+	// 合法性は棋譜全体ぶん確かめられる（再生は常に1プロセスで最後まで走る）。
 	result, err := replayer.ReplayUntil(context.Background(), source, 0)
 	if err != nil {
 		t.Fatalf("契約の例を読めません: %v", err)
@@ -226,8 +230,8 @@ func TestHarnessReadsContractExample(t *testing.T) {
 	if result.Script.Moves[0].Player != protocol.PlayerDark || *result.Script.Moves[0].Row != 2 {
 		t.Errorf("1手目が違います: %+v", result.Script.Moves[0])
 	}
-	if result.Script.Moves[2].Type != protocol.CommandPass {
-		t.Errorf("3手目がパスではありません: %+v", result.Script.Moves[2])
+	if result.Script.Moves[2].Player != protocol.PlayerDark || *result.Script.Moves[2].Col != 4 {
+		t.Errorf("3手目が違います: %+v", result.Script.Moves[2])
 	}
 	if result.Script.StartedAt != "2026-09-12T21:30:00+09:00" {
 		t.Errorf("開始時刻をヘッダから読めていません: %q", result.Script.StartedAt)
@@ -238,10 +242,10 @@ func TestHarnessReadsContractExample(t *testing.T) {
 		t.Fatalf("行の対応が違います: %d", got)
 	}
 	first := result.Outline.MoveLines[0]
-	if !first.Annotated || first.Color != 60 || first.Changed != 3 {
+	if !first.Annotated || first.Color != 60 || first.Changed != 1 {
 		t.Errorf("注釈を読めていません: %+v", first)
 	}
-	if first.Line != 7 {
+	if first.Line != 8 {
 		t.Errorf("行番号が違います: %d", first.Line)
 	}
 }

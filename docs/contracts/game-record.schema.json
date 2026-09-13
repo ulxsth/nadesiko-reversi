@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "version",
+    "rulesVersion",
     "gameId",
     "seed",
     "startedAt",
@@ -16,6 +17,7 @@
   ],
   "properties": {
     "version": {"const": "1"},
+    "rulesVersion": {"const": "1"},
     "gameId": {"type": "string", "minLength": 1},
     "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
     "startedAt": {"type": "string", "format": "date-time"},
