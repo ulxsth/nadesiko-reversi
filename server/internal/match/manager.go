@@ -32,6 +32,8 @@ type Membership struct {
 type Manager struct {
 	runner runtime.Runner
 
+	// 参加先の選択から席とplayerIDの登録までを、Join同士で直列化する。
+	joinMu  sync.Mutex
 	mu      sync.Mutex
 	rooms   map[string]*Room
 	players map[string]string
@@ -85,6 +87,8 @@ func (m *Manager) Join(ctx context.Context, playerID string) (*Membership, error
 	if playerID == "" {
 		return nil, &JoinError{Message: "playerIDが必要です"}
 	}
+	m.joinMu.Lock()
+	defer m.joinMu.Unlock()
 
 	room, err := m.roomForJoin(playerID)
 	if err != nil {

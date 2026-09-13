@@ -181,6 +181,108 @@ func TestThirdPlayerOpensNewRoom(t *testing.T) {
 	}
 }
 
+func TestThirdPlayerDuringMatchCreationOpensNewRoom(t *testing.T) {
+	ctx := context.Background()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	runner := runtimetest.New(func(_ context.Context, request protocol.Request) (*protocol.Response, error) {
+		close(started)
+		<-release
+		return runtimetest.Accepted(runtimetest.NewState(request.GameID)), nil
+	})
+	manager, err := match.NewManager(runner, match.WithSeed(1))
+	if err != nil {
+		t.Fatalf("managerを作れません: %v", err)
+	}
+	defer func() {
+		unblock()
+		manager.Close("test終了")
+	}()
+
+	first, err := manager.Join(ctx, "alice")
+	if err != nil {
+		t.Fatalf("1人目の参加に失敗: %v", err)
+	}
+	type joinResult struct {
+		membership *match.Membership
+		err        error
+	}
+	secondDone := make(chan joinResult, 1)
+	go func() {
+		membership, joinErr := manager.Join(ctx, "bob")
+		secondDone <- joinResult{membership, joinErr}
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("2人目の対局生成が始まりません")
+	}
+
+	thirdStarted := make(chan struct{})
+	thirdDone := make(chan joinResult, 1)
+	go func() {
+		close(thirdStarted)
+		membership, joinErr := manager.Join(ctx, "carol")
+		thirdDone <- joinResult{membership, joinErr}
+	}()
+	<-thirdStarted
+	// 3人目が2人目の対局生成中に参加先を探す時間を与える。
+	time.Sleep(20 * time.Millisecond)
+	unblock()
+
+	var second, third joinResult
+	select {
+	case second = <-secondDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("2人目の参加が完了しません")
+	}
+	select {
+	case third = <-thirdDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("3人目の参加が完了しません")
+	}
+	if second.err != nil || third.err != nil {
+		t.Fatalf("並行参加に失敗: 2人目=%v, 3人目=%v", second.err, third.err)
+	}
+	if second.membership.RoomID != first.RoomID {
+		t.Errorf("2人目が別roomへ入りました: %q", second.membership.RoomID)
+	}
+	if third.membership.RoomID == first.RoomID || third.membership.Seat != protocol.PlayerDark {
+		t.Errorf("3人目が新しいroomのdark席に入りませんでした: %+v", third.membership)
+	}
+}
+
+func TestConcurrentJoinWithSamePlayerIDUsesOneSeat(t *testing.T) {
+	ctx := context.Background()
+	manager := newManager(t)
+	const attempts = 32
+	start := make(chan struct{})
+	results := make(chan error, attempts)
+	for i := 0; i < attempts; i++ {
+		go func() {
+			<-start
+			_, err := manager.Join(ctx, "alice")
+			results <- err
+		}()
+	}
+	close(start)
+
+	succeeded := 0
+	for i := 0; i < attempts; i++ {
+		if err := <-results; err == nil {
+			succeeded++
+		}
+	}
+	if succeeded != 1 {
+		t.Errorf("同じplayerIDの参加成功数が違います: %d", succeeded)
+	}
+	if manager.PlayerCount() != 1 || manager.RoomCount() != 1 {
+		t.Errorf("参加者またはroomが重複しました: players=%d, rooms=%d", manager.PlayerCount(), manager.RoomCount())
+	}
+}
+
 func TestSubmitBroadcastsFullStateToBothSeats(t *testing.T) {
 	ctx := context.Background()
 	manager := newManager(t)
