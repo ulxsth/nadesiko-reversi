@@ -39,12 +39,6 @@
           <dl class="meta">
             <dt>手番</dt>
             <dd id="meta-turn-player">—</dd>
-            <dt>手数</dt>
-            <dd id="meta-turn-number">—</dd>
-            <dt>合法手</dt>
-            <dd id="meta-legal-count">—</dd>
-            <dt>自分</dt>
-            <dd id="meta-self">—</dd>
           </dl>
         </section>
 
@@ -58,13 +52,19 @@
             <button id="pass-button" type="button" class="action" disabled>パス</button>
           </div>
         </section>
-
-        <section class="panel-block">
-          <h2 class="panel-title">request</h2>
-          <pre id="command-preview" class="command-preview">—</pre>
-        </section>
       </aside>
     </main>
+
+    <section
+      id="result-popup"
+      class="result-popup"
+      role="status"
+      aria-live="assertive"
+      aria-atomic="true"
+      hidden
+    >
+      <p id="result-popup-message" class="result-popup-message"></p>
+    </section>
 
     <script type="module">
       const source = await fetch('./main.nako3').then((response) => {
