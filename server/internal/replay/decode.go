@@ -19,8 +19,9 @@ var (
 	startLinePattern        = regexp.MustCompile(`^「([^」]*)」と(\d+)で対局開始\s*(?:#.*)?$`)
 	placeLinePattern        = regexp.MustCompile(`^([0-7])と([0-7])で(黒|白)着手\s*(?:#(.*))?$`)
 	passLinePattern         = regexp.MustCompile(`^(黒|白)パス\s*(?:#.*)?$`)
-	endLinePattern          = regexp.MustCompile(`^「(黒|白)」で対局終了\s*(?:#.*)?$`)
-	commentPattern          = regexp.MustCompile(`^#(.*)$`)
+	// 終了行だけは、勝者のいない終局を表す「引分」も取る。
+	endLinePattern = regexp.MustCompile(`^「(黒|白|引分)」で対局終了\s*(?:#.*)?$`)
+	commentPattern = regexp.MustCompile(`^#(.*)$`)
 
 	// 着手行の注釈。厳密照合で再生結果と突き合わせる。
 	placeAnnotationPattern = regexp.MustCompile(`色(\d+)、(\d+)個変換`)

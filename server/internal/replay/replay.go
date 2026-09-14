@@ -261,16 +261,29 @@ func verifyFinished(result *Result) error {
 			Message:    fmt.Sprintf("終了行があるのに対局が終わりません (phase=%s)", final.Phase),
 		}
 	}
-	if final.Winner == nil || *final.Winner != result.Script.Winner {
-		replayed := "なし"
-		if final.Winner != nil {
-			replayed = string(*final.Winner)
-		}
+	// どちらもnilなら引き分けどうしの一致。片方だけnilは不一致。
+	if !samePlayer(final.Winner, result.Script.Winner) {
 		return &SourceError{
 			Code: CodeRecordMismatch,
 			Message: fmt.Sprintf("記録された勝者と再生結果が違います (記録=%s, 再生=%s)",
-				result.Script.Winner, replayed),
+				resultText(result.Script.Winner), resultText(final.Winner)),
 		}
 	}
 	return nil
+}
+
+// samePlayer は勝者が一致するかを返す。どちらもnilなら引き分けどうしで一致とみなす。
+func samePlayer(left, right *protocol.Player) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+// resultText は勝敗の表示用文字列を返す。引き分けのnilは「引分」と書く。
+func resultText(winner *protocol.Player) string {
+	if winner == nil {
+		return "引分"
+	}
+	return string(*winner)
 }

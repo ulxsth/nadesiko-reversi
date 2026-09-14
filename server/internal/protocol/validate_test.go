@@ -206,12 +206,12 @@ func TestStateValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "finishedにwinnerがない",
+			// winnerがnullのfinishedは引き分け
+			name: "引き分けのfinished",
 			mutate: func(s *protocol.State) {
 				s.Phase = protocol.PhaseFinished
 				s.LegalMoves = nil
 			},
-			want: protocol.CodeInvalidState,
 		},
 		{
 			name: "finishedのwinnerが不正",

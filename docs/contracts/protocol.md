@@ -48,7 +48,7 @@
 | `rngState` | 0..4294967295 | LCG内部state |
 | `consecutivePasses` | 0..2 | 連続パス数 |
 | `phase` | `playing\|finished` | 対局状態 |
-| `winner` | `null\|dark\|light` | 終了時の勝者 |
+| `winner` | `null\|dark\|light` | 終了時の勝者。`finished`で`null`なら引き分け |
 | `legalMoves` | 座標配列 | row-major順の現在の合法手 |
 
 ## Runtime response
@@ -106,4 +106,4 @@ event順序の識別には`turnNumber`を使う。`turnNumber`は受理済みcom
 
 ## Game record
 
-recordはgame ID、seed、開始・終了時刻、勝者、受理済みcommand列、最終stateを保持する。seedからcommandを順に再適用した結果が最終stateと一致することを検証する。時刻はRFC 3339 UTC文字列とする。
+recordはgame ID、seed、開始・終了時刻、勝者（引き分けは`null`）、受理済みcommand列、最終stateを保持する。seedからcommandを順に再適用した結果が最終stateと一致することを検証する。時刻はRFC 3339 UTC文字列とする。
