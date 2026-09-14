@@ -29,6 +29,7 @@
         <section class="panel-block status-block">
           <p id="status-phase" class="status-phase" role="status" aria-live="polite">読込中</p>
           <p id="status-message" class="status-message"></p>
+          <p id="result-average" class="status-message" hidden></p>
         </section>
 
         <section class="panel-block">
@@ -39,18 +40,38 @@
           <dl class="meta">
             <dt>手番</dt>
             <dd id="meta-turn-player">—</dd>
+            <dt id="seat-label" hidden>自分</dt>
+            <dd id="seat-value" hidden>—</dd>
           </dl>
         </section>
 
         <section class="panel-block">
           <div class="controls">
-            <label class="control">
-              <span>seed</span>
-              <input id="seed-input" type="number" min="0" max="4294967295" step="1" value="1" inputmode="numeric">
-            </label>
-            <button id="new-game-button" type="button" class="action">新しい対局</button>
+            <button id="play-online-button" type="button" class="action">二人対戦</button>
+            <button id="play-local-button" type="button" class="action" hidden>ローカル対局へ戻る</button>
+            <button id="reconnect-button" type="button" class="action" hidden>再接続</button>
+            <div id="local-controls">
+              <div class="controls">
+                <label class="control">
+                  <span>seed</span>
+                  <input id="seed-input" type="number" min="0" max="4294967295" step="1" value="1" inputmode="numeric">
+                </label>
+                <button id="new-game-button" type="button" class="action">新しい対局</button>
+              </div>
+            </div>
             <button id="pass-button" type="button" class="action" disabled>パス</button>
+            <button id="replay-open-button" type="button" class="action" hidden>棋譜を見る</button>
           </div>
+        </section>
+
+        <section id="replay-panel" class="panel-block" hidden>
+          <p id="replay-position" role="status"></p>
+          <div class="controls">
+            <button id="replay-back-button" type="button" class="action">前へ</button>
+            <button id="replay-next-button" type="button" class="action">次へ</button>
+            <button id="replay-exit-button" type="button" class="action">対局へ戻る</button>
+          </div>
+          <pre id="replay-source" style="max-height:16rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"></pre>
         </section>
       </aside>
     </main>
@@ -66,7 +87,60 @@
       <p id="result-popup-message" class="result-popup-message"></p>
     </section>
 
+    <textarea id="bridge-in" hidden></textarea>
+    <button id="bridge-event" type="button" hidden></button>
+    <span id="bridge-out" hidden></span>
+
     <script type="module">
+      const inbound = document.querySelector('#bridge-in')
+      const outbound = document.querySelector('#bridge-out')
+      const eventButton = document.querySelector('#bridge-event')
+      const emit = (message) => {
+        inbound.value = JSON.stringify(message)
+        eventButton.click()
+      }
+      let socket = null
+      let generation = 0
+      const playerIdKey = 'nadesiko-reversi-player-id'
+      const playerId = sessionStorage.getItem(playerIdKey) ?? crypto.randomUUID().replaceAll('-', '')
+      sessionStorage.setItem(playerIdKey, playerId)
+
+      const connect = () => {
+        const ownGeneration = ++generation
+        socket?.close()
+        const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const url = `${scheme}//${location.host}/api/match?playerId=${encodeURIComponent(playerId)}`
+        socket = new WebSocket(url)
+        socket.addEventListener('open', () => {
+          if (ownGeneration === generation) emit({type: 'bridgeOpen'})
+        })
+        socket.addEventListener('message', (event) => {
+          if (ownGeneration !== generation) return
+          try { emit(JSON.parse(event.data)) }
+          catch { emit({type: 'bridgeError', reason: '対戦の応答を読み取れません'}) }
+        })
+        socket.addEventListener('close', () => {
+          if (ownGeneration === generation) emit({type: 'bridgeClosed'})
+        })
+        socket.addEventListener('error', () => {
+          if (ownGeneration === generation) emit({type: 'bridgeError', reason: '対戦サーバーへ接続できません'})
+        })
+      }
+      new MutationObserver(() => {
+        const message = JSON.parse(outbound.textContent || '{}')
+        if (message.action === 'connect') connect()
+        if (message.action === 'disconnect') {
+          generation++
+          socket?.close()
+          socket = null
+        }
+        if (message.action === 'send') {
+          if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message.command))
+          else emit({type: 'bridgeError', reason: '対戦サーバーへ接続されていません'})
+        }
+      }).observe(outbound, {childList: true, characterData: true, subtree: true})
+      window.addEventListener('beforeunload', () => socket?.close())
+
       const source = await fetch('./main.nako3').then((response) => {
         if (!response.ok) throw new Error(`main.nako3: ${response.status}`)
         return response.text()
