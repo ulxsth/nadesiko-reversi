@@ -1,0 +1,16 @@
+.git
+.github
+.agents
+.tools
+.editorconfig
+.gitattributes
+.gitignore
+docs
+openspec
+scripts
+*.md
+# ホスト側の版が混ざらないよう、ブラウザランタイムはbuild時に取り直す。
+web/vendor
+# testでだけ使う資材はイメージへ入れない。
+rules/testdata
+web/fixtures
