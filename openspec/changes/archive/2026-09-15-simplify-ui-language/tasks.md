@@ -14,4 +14,4 @@
 
 - [x] 3.1 `docs/manual-debug.md` に通常画面と debug 画面の確認項目を更新する。
 - [x] 3.2 WSL `make check` と OpenSpec strict validation を通す。
-- [ ] 3.3 文言・数直線・対戦切替の人間による画面確認を PR に引き継ぐ。
+- [x] 3.3 文言・数直線・対戦切替の人間による画面確認を PR に引き継ぐ。ユーザーの確認済み・マージ承認を PR #51 に記録した。個別 PASS/FAIL の内訳は未共有のため記録していない。
