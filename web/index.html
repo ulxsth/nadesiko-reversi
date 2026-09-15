@@ -76,6 +76,10 @@
           </div>
           <pre id="replay-source" style="max-height:16rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere"></pre>
         </section>
+
+        <section class="panel-block">
+          <p class="status-message" style="opacity:.75">対局と記録はサーバーの中だけに保持され、再起動で消えます。二人対戦の相手は先着順で決まります。</p>
+        </section>
       </aside>
     </main>
 
@@ -125,8 +129,9 @@
           try { emit(JSON.parse(event.data)) }
           catch { emit({type: 'bridgeError', reason: '対戦の応答を読み取れません'}) }
         })
-        socket.addEventListener('close', () => {
-          if (ownGeneration === generation) emit({type: 'bridgeClosed'})
+        socket.addEventListener('close', (event) => {
+          // サーバーが理由つきで閉じた場合は、その理由を画面へそのまま渡す。
+          if (ownGeneration === generation) emit({type: 'bridgeClosed', code: event.code, reason: event.reason})
         })
         socket.addEventListener('error', () => {
           if (ownGeneration === generation) emit({type: 'bridgeError', reason: '対戦サーバーへ接続できません'})

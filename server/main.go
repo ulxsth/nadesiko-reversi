@@ -12,15 +12,20 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -37,12 +42,59 @@ type healthResponse struct {
 	GonakoReady bool   `json:"gonakoReady"`
 }
 
+// 公開デモの既定値。ローカル開発の挙動を変えない値を選ぶ。
+const (
+	defaultAddr          = "127.0.0.1:4173"
+	defaultMaxConns      = 20
+	defaultMaxRooms      = 10
+	defaultCommandRate   = 2
+	defaultCommandBurst  = 8
+	defaultIdleTimeout   = 10 * time.Minute
+	defaultConnectionAge = 55 * time.Minute
+	wsPingInterval       = 30 * time.Second
+)
+
+// WebSocketの終了コード。4000番台はapplication用の私的範囲。
+const (
+	closeGoingAway = 1001
+	closeProtocol  = 1002
+	closeTooLarge  = 1009
+	closeTryLater  = 1013
+	closeIdle      = 4001
+	closeMaxAge    = 4002
+)
+
+// demoConfig は公開デモとして動かすときの待ち受け、受け入れ範囲、上限。
+// 値は環境変数から読み、未指定なら開発用の既定値を使う。
+type demoConfig struct {
+	addr             string
+	webDir           string
+	rulesDir         string
+	publicOrigin     string
+	maxConnections   int
+	maxRooms         int
+	commandRate      float64
+	commandBurst     int
+	idleTimeout      time.Duration
+	maxConnectionAge time.Duration
+	pingInterval     time.Duration
+	readTimeout      time.Duration
+}
+
 type demoApp struct {
+	config   demoConfig
 	rules    *gameruntime.Gonako
 	matches  *match.Manager
 	replayer *replay.Replayer
 	replays  *replay.Service
 	records  *recordLedger
+
+	// rulesReady は同梱ルールを使えるかどうか。testで差し替える。
+	rulesReady func() bool
+	// rulesVerified は起動時のルール実行確認の結果。
+	rulesVerified atomic.Bool
+	// connections は現在のWebSocket接続数。
+	connections atomic.Int64
 }
 
 type acceptedMove struct {
@@ -89,11 +141,250 @@ func (l *recordLedger) discard(roomID string) {
 	l.mu.Unlock()
 }
 
+// ===== 公開デモの構成 =====
+
+// loadConfig はflagと環境変数から構成を組み立てる。
+// 不正な値はここで止める。公開してから気づく事態を避けるため、既定値へ落とさない。
+func loadConfig(getenv func(string) string, addr string, addrSet bool, webDir, rulesDir string) (demoConfig, error) {
+	listen, err := resolveAddr(addr, addrSet, getenv("PORT"))
+	if err != nil {
+		return demoConfig{}, err
+	}
+	publicOrigin, err := parsePublicOrigin(getenv("PUBLIC_ORIGIN"))
+	if err != nil {
+		return demoConfig{}, err
+	}
+	maxConnections, err := envInt(getenv, "MAX_CONNECTIONS", defaultMaxConns, 1, 10000)
+	if err != nil {
+		return demoConfig{}, err
+	}
+	maxRooms, err := envInt(getenv, "MAX_ROOMS", defaultMaxRooms, 1, 10000)
+	if err != nil {
+		return demoConfig{}, err
+	}
+	commandRate, err := envInt(getenv, "COMMAND_RATE_PER_SEC", defaultCommandRate, 1, 1000)
+	if err != nil {
+		return demoConfig{}, err
+	}
+	commandBurst, err := envInt(getenv, "COMMAND_BURST", defaultCommandBurst, 1, 1000)
+	if err != nil {
+		return demoConfig{}, err
+	}
+	idleTimeout, err := envSeconds(getenv, "IDLE_TIMEOUT_SECONDS", defaultIdleTimeout, time.Minute, 24*time.Hour)
+	if err != nil {
+		return demoConfig{}, err
+	}
+	maxAge, err := envSeconds(getenv, "MAX_CONNECTION_SECONDS", defaultConnectionAge, time.Minute, 24*time.Hour)
+	if err != nil {
+		return demoConfig{}, err
+	}
+
+	return demoConfig{
+		addr:             listen,
+		webDir:           webDir,
+		rulesDir:         rulesDir,
+		publicOrigin:     publicOrigin,
+		maxConnections:   maxConnections,
+		maxRooms:         maxRooms,
+		commandRate:      float64(commandRate),
+		commandBurst:     commandBurst,
+		idleTimeout:      idleTimeout,
+		maxConnectionAge: maxAge,
+		pingInterval:     wsPingInterval,
+		// pingへのpongが2回続けて落ちるまでは待つ。
+		readTimeout: 2*wsPingInterval + 15*time.Second,
+	}, nil
+}
+
+// resolveAddr は待ち受けアドレスを決める。
+// -addrの明示指定が最優先、次にコンテナが渡すPORT、最後に開発用の既定値を使う。
+func resolveAddr(addr string, addrSet bool, port string) (string, error) {
+	if addrSet {
+		if strings.TrimSpace(addr) == "" {
+			return "", fmt.Errorf("-addrが空です")
+		}
+		return addr, nil
+	}
+	port = strings.TrimSpace(port)
+	if port == "" {
+		return addr, nil
+	}
+	number, err := strconv.Atoi(port)
+	if err != nil || number < 1 || number > 65535 {
+		return "", fmt.Errorf("PORTは1〜65535の整数である必要があります: %q", port)
+	}
+	return net.JoinHostPort("0.0.0.0", strconv.Itoa(number)), nil
+}
+
+// parsePublicOrigin は公開originを正規化する。
+//
+// 受け付けるのは`https://host[:port]`だけ。例外として、コンテナをローカルで
+// 確認するときのために、ループバックhostに限り`http://`も許す。
+// path・query・userinfoを持つ値は拒否する。
+func parsePublicOrigin(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("PUBLIC_ORIGINを解析できません: %v", err)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "https" && !(scheme == "http" && loopbackHost(parsed.Host)) {
+		return "", fmt.Errorf("PUBLIC_ORIGINはhttpsで指定してください（httpはループバックhostのみ）: %q", raw)
+	}
+	if parsed.Host == "" || parsed.Opaque != "" || parsed.User != nil ||
+		(parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("PUBLIC_ORIGINはscheme+hostだけで指定してください: %q", raw)
+	}
+	return scheme + "://" + strings.ToLower(parsed.Host), nil
+}
+
+// loopbackHost はhostが同じ端末を指すかどうかを返す。
+func loopbackHost(host string) bool {
+	name := host
+	if withoutPort, _, err := net.SplitHostPort(host); err == nil {
+		name = withoutPort
+	}
+	if strings.EqualFold(name, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(strings.Trim(name, "[]"))
+	return ip != nil && ip.IsLoopback()
+}
+
+// envInt は整数の環境変数を範囲つきで読む。
+func envInt(getenv func(string) string, name string, fallback, min, max int) (int, error) {
+	raw := strings.TrimSpace(getenv(name))
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < min || value > max {
+		return 0, fmt.Errorf("%sは%d〜%dの整数である必要があります: %q", name, min, max, raw)
+	}
+	return value, nil
+}
+
+// envSeconds は秒数の環境変数を範囲つきで読む。
+func envSeconds(getenv func(string) string, name string, fallback, min, max time.Duration) (time.Duration, error) {
+	seconds, err := envInt(getenv, name, int(fallback/time.Second), int(min/time.Second), int(max/time.Second))
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(seconds) * time.Second, nil
+}
+
+// publicOriginMatches はOriginヘッダーが公開originと完全一致するかを返す。
+// Hostや転送ヘッダーは前段が書き換えられるので、受け入れ判断には使わない。
+func publicOriginMatches(publicOrigin, header string) bool {
+	if publicOrigin == "" {
+		return false
+	}
+	trimmed := strings.TrimSpace(header)
+	if trimmed == "" {
+		return false
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return false
+	}
+	// schemeの許可範囲はPUBLIC_ORIGINの検証で決まっている。ここは字面の一致だけを見る。
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "https" && scheme != "http" {
+		return false
+	}
+	if parsed.Host == "" || parsed.Opaque != "" || parsed.User != nil ||
+		parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	return scheme+"://"+strings.ToLower(parsed.Host) == publicOrigin
+}
+
+// rateLimiter は1接続あたりのcommand頻度を抑えるtoken bucket。
+// 呼び出しは1接続の読み取りloopからだけなので、lockを持たない。
+type rateLimiter struct {
+	rate     float64
+	burst    float64
+	tokens   float64
+	lastFill time.Time
+}
+
+func newRateLimiter(rate float64, burst int, now time.Time) *rateLimiter {
+	return &rateLimiter{rate: rate, burst: float64(burst), tokens: float64(burst), lastFill: now}
+}
+
+// allow は1件分のtokenを消費できたかどうかを返す。
+func (l *rateLimiter) allow(now time.Time) bool {
+	if elapsed := now.Sub(l.lastFill).Seconds(); elapsed > 0 {
+		l.tokens = math.Min(l.burst, l.tokens+elapsed*l.rate)
+		l.lastFill = now
+	}
+	if l.tokens < 1 {
+		return false
+	}
+	l.tokens--
+	return true
+}
+
+// admit は同時接続の上限内なら接続を数え、解放関数を返す。
+func (a *demoApp) admit() (func(), bool) {
+	if a.connections.Add(1) > int64(a.config.maxConnections) {
+		a.connections.Add(-1)
+		return func() {}, false
+	}
+	var once sync.Once
+	return func() { once.Do(func() { a.connections.Add(-1) }) }, true
+}
+
+// gonakoReady は同梱ルールを実際に使えるかどうかを返す。
+func (a *demoApp) gonakoReady() bool {
+	if !a.rulesVerified.Load() {
+		return false
+	}
+	return a.rulesReady == nil || a.rulesReady()
+}
+
+// handleHealth はGo側とgonako側のready状態を返す。
+// 未readyのときは成功以外のstatusにして、健全性確認から失敗と分かるようにする。
+func (a *demoApp) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	ready := a.gonakoReady()
+	status, label := http.StatusOK, "ok"
+	if !ready {
+		status, label = http.StatusServiceUnavailable, "degraded"
+	}
+	writeJSON(w, status, healthResponse{Status: label, GoReady: true, GonakoReady: ready})
+}
+
+// verifyRules は同梱ルールを1回実行して、実際に動くことを確かめる。
+func verifyRules(ctx context.Context, rules *gameruntime.Gonako) error {
+	response, err := rules.Evaluate(ctx, protocol.NewGameRequest("startup-check", 1))
+	if err != nil {
+		return err
+	}
+	if !response.OK || response.State == nil {
+		return fmt.Errorf("ルールの起動確認が拒否されました")
+	}
+	return nil
+}
+
 func main() {
-	addr := flag.String("addr", "127.0.0.1:4173", "listen address")
+	addr := flag.String("addr", defaultAddr, "listen address")
 	webDir := flag.String("web", "web", "web root")
 	rulesDir := flag.String("rules", "rules", "rule source directory")
 	flag.Parse()
+	addrSet := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "addr" {
+			addrSet = true
+		}
+	})
+
+	config, err := loadConfig(os.Getenv, *addr, addrSet, *webDir, *rulesDir)
+	if err != nil {
+		log.Fatalf("構成が不正です: %v", err)
+	}
 
 	gonakoBin := os.Getenv("GONAKO_BIN")
 	if gonakoBin == "" {
@@ -137,25 +428,63 @@ func main() {
 	if err != nil {
 		log.Fatalf("棋譜保管庫を初期化できません: %v", err)
 	}
-	app := &demoApp{rules: rules, matches: matches, replayer: replayer, replays: replays, records: records}
+	app := &demoApp{
+		config:     config,
+		rules:      rules,
+		matches:    matches,
+		replayer:   replayer,
+		replays:    replays,
+		records:    records,
+		rulesReady: rules.Ready,
+	}
+
+	// 同梱物が揃っているだけでなく、実際にルールを実行できることを起動時に確かめる。
+	// 失敗しても起動は続け、/healthzから未readyを観測できるようにする。
+	verifyCtx, cancelVerify := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := verifyRules(verifyCtx, rules); err != nil {
+		log.Printf("ルールの起動確認に失敗しました: %v", err)
+	} else {
+		app.rulesVerified.Store(true)
+	}
+	cancelVerify()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, healthResponse{Status: "ok", GoReady: true, GonakoReady: app.rules.Ready()})
-	})
+	mux.HandleFunc("GET /healthz", app.handleHealth)
 	mux.Handle("POST /api/local/runtime", localgame.NewHandler(game))
 	mux.HandleFunc("GET /api/match", app.handleMatch)
 	mux.HandleFunc("GET /api/replays/{gameId}", app.handleReplay)
-	mux.Handle("/", http.FileServer(http.Dir(*webDir)))
+	mux.Handle("/", http.FileServer(http.Dir(config.webDir)))
 
 	server := &http.Server{
-		Addr:              *addr,
+		Addr:              config.addr,
 		Handler:           withHeaders(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	log.Printf("なでしこ・リバーシ開発サーバー: http://%s", *addr)
-	log.Fatal(server.ListenAndServe())
+	// 停止signalを受けたら、まず対局中の全席へ理由を配信してからHTTPを閉じる。
+	// これでインスタンス停止時に、クライアントは理由なしの切断ではなく再接続の案内を受け取れる。
+	signalCtx, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
+	go func() {
+		<-signalCtx.Done()
+		log.Printf("停止signalを受け取りました。接続を閉じます")
+		matches.Close("サーバーを再起動します。少し待ってから再接続してください")
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelShutdown()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("停止処理でエラーが発生しました: %v", err)
+		}
+	}()
+
+	log.Printf("なでしこ・リバーシサーバー: http://%s", config.addr)
+	if config.publicOrigin == "" {
+		log.Printf("公開originが未設定です。WebSocketはローカルの同一originだけを受け付けます")
+	} else {
+		log.Printf("公開origin: %s", config.publicOrigin)
+	}
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("サーバーを起動できません: %v", err)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
@@ -222,9 +551,18 @@ func localWebSocketOrigin(r *http.Request) bool {
 	return strings.EqualFold(origin.Host, r.Host) && origin.Path == "" && origin.RawQuery == ""
 }
 
-func upgradeWebSocket(w http.ResponseWriter, r *http.Request) (*wsSocket, error) {
-	if !localWebSocketOrigin(r) {
-		http.Error(w, "同じ端末の画面から接続してください", http.StatusForbidden)
+// allowWebSocketOrigin は接続元を受け入れるかどうかを返す。
+// ローカルのループバック同一originか、設定された公開originとの完全一致だけを許す。
+func (a *demoApp) allowWebSocketOrigin(r *http.Request) bool {
+	if localWebSocketOrigin(r) {
+		return true
+	}
+	return publicOriginMatches(a.config.publicOrigin, r.Header.Get("Origin"))
+}
+
+func (a *demoApp) upgradeWebSocket(w http.ResponseWriter, r *http.Request) (*wsSocket, error) {
+	if !a.allowWebSocketOrigin(r) {
+		http.Error(w, "許可されていない接続元です", http.StatusForbidden)
 		return nil, errWSProtocol
 	}
 	if !headerHasToken(r.Header.Get("Connection"), "Upgrade") ||
@@ -355,12 +693,54 @@ type wsPeer struct {
 	outgoing chan queuedFrame
 	done     chan struct{}
 	once     sync.Once
+	// lastActive は最後にcommandを受けたかeventを送った時刻。アイドル上限はここから計る。
+	lastActive atomic.Int64
 }
 
 func newWSPeer(socket *wsSocket) *wsPeer {
 	peer := &wsPeer{socket: socket, outgoing: make(chan queuedFrame, 32), done: make(chan struct{})}
+	peer.touch()
 	go peer.writeLoop()
 	return peer
+}
+
+// touch は対局が動いた時刻を記録する。
+func (p *wsPeer) touch() {
+	p.lastActive.Store(time.Now().UnixNano())
+}
+
+// keepAlive はpingで接続を維持し、アイドル上限と接続時間上限に達したら理由つきで閉じる。
+//
+// ブラウザはping frameへ自動でpongを返すので、操作がなくても接続は切れない。
+// 代わりに、両者が何もしない時間と1接続の総時間へ明示的な上限を置く。
+func (p *wsPeer) keepAlive(config demoConfig) {
+	ticker := time.NewTicker(config.pingInterval)
+	defer ticker.Stop()
+	deadline := time.Now().Add(config.maxConnectionAge)
+	for {
+		select {
+		case <-p.done:
+			return
+		case now := <-ticker.C:
+			if !now.Before(deadline) {
+				p.shutdown(closeMaxAge, "接続時間の上限に達しました。再接続してください")
+				return
+			}
+			if now.Sub(time.Unix(0, p.lastActive.Load())) >= config.idleTimeout {
+				p.shutdown(closeIdle, "一定時間操作がなかったため切断しました。再接続してください")
+				return
+			}
+			if !p.send(wsFrame{opcode: 9}) {
+				return
+			}
+		}
+	}
+}
+
+// shutdown は理由を伝えてから接続を閉じる。
+func (p *wsPeer) shutdown(code uint16, reason string) {
+	p.flush(wsCloseFrame(code, reason))
+	p.close()
 }
 
 func (p *wsPeer) close() {
@@ -419,10 +799,32 @@ func (p *wsPeer) flush(frame wsFrame) {
 	}
 }
 
-func wsCloseFrame(code uint16) wsFrame {
-	data := make([]byte, 2)
+// wsCloseFrame は終了コードと表示可能な理由を持つclose frameを作る。
+func wsCloseFrame(code uint16, reason string) wsFrame {
+	data := make([]byte, 2, 2+len(reason))
 	binary.BigEndian.PutUint16(data, code)
-	return wsFrame{opcode: 8, data: data}
+	return wsFrame{opcode: 8, data: append(data, truncateCloseReason(reason)...)}
+}
+
+// truncateCloseReason は理由をclose frameのpayload上限（125byte）へ収める。
+// 途中で切るとUTF-8として不正になるので、有効な境界まで戻す。
+func truncateCloseReason(reason string) []byte {
+	const limit = 123
+	if len(reason) <= limit {
+		return []byte(reason)
+	}
+	truncated := reason[:limit]
+	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return []byte(truncated)
+}
+
+// closeSocket は参加前に断る接続へ、理由を伝えてから閉じる。
+func closeSocket(socket *wsSocket, code uint16, reason string) {
+	_ = socket.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_ = socket.writeFrame(wsCloseFrame(code, reason))
+	_ = socket.conn.Close()
 }
 
 func (a *demoApp) handleMatch(w http.ResponseWriter, r *http.Request) {
@@ -431,8 +833,20 @@ func (a *demoApp) handleMatch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "参加者IDは半角英数字と_-の1〜64文字で指定してください"})
 		return
 	}
-	socket, err := upgradeWebSocket(w, r)
+	socket, err := a.upgradeWebSocket(w, r)
 	if err != nil {
+		return
+	}
+	// 上限超過はupgradeしてから理由つきで閉じる。
+	// ブラウザはupgrade前のHTTP statusを読めず、理由なしの1006になってしまうため。
+	release, admitted := a.admit()
+	if !admitted {
+		closeSocket(socket, closeTryLater, "接続が混み合っています。しばらくしてから開き直してください")
+		return
+	}
+	defer release()
+	if a.matches.RoomCount() >= a.config.maxRooms {
+		closeSocket(socket, closeTryLater, "対局数の上限に達しています。しばらくしてから開き直してください")
 		return
 	}
 	membership, err := a.matches.Join(context.Background(), playerID)
@@ -454,14 +868,16 @@ func (a *demoApp) handleMatch(w http.ResponseWriter, r *http.Request) {
 
 	record := a.records.get(membership.RoomID)
 	go a.forwardEvents(peer, membership.Events, record)
+	go peer.keepAlive(a.config)
+	limiter := newRateLimiter(a.config.commandRate, a.config.commandBurst, time.Now())
 	for {
-		_ = socket.conn.SetReadDeadline(time.Now().Add(90 * time.Second))
+		_ = socket.conn.SetReadDeadline(time.Now().Add(a.config.readTimeout))
 		frame, err := socket.readFrame()
 		if err != nil {
 			if errors.Is(err, errWSProtocol) {
-				peer.flush(wsCloseFrame(1002))
+				peer.flush(wsCloseFrame(closeProtocol, "WebSocketの形式が不正です"))
 			} else if errors.Is(err, errWSMessageTooLarge) {
-				peer.flush(wsCloseFrame(1009))
+				peer.flush(wsCloseFrame(closeTooLarge, "メッセージが大きすぎます"))
 			}
 			return
 		}
@@ -474,6 +890,12 @@ func (a *demoApp) handleMatch(w http.ResponseWriter, r *http.Request) {
 		case 10:
 			// pongは接続の生存確認にのみ使用する。
 		case 1:
+			if !limiter.allow(time.Now()) {
+				peer.sendJSON(protocol.Response{Version: protocol.Version, OK: false,
+					Error: protocol.NewError(protocol.CodeInvalidRequest, "操作が速すぎます。少し待ってからもう一度お試しください")})
+				continue
+			}
+			peer.touch()
 			var command protocol.Command
 			if err := json.Unmarshal(frame.data, &command); err != nil {
 				peer.sendJSON(protocol.Response{Version: protocol.Version, OK: false,
@@ -501,6 +923,9 @@ func (a *demoApp) forwardEvents(peer *wsPeer, events <-chan match.Event, record 
 			return
 		case event, ok := <-events:
 			if !ok {
+				// roomが片付いた後に読み取りdeadlineまで黙って待たせない。
+				// 直前までに積んだeventを書き切ってから、理由つきで閉じる。
+				peer.shutdown(closeGoingAway, "サーバーが接続を終了しました。再接続してください")
 				return
 			}
 			if record != nil && event.State != nil && event.State.Phase == protocol.PhaseFinished {
@@ -516,6 +941,7 @@ func (a *demoApp) forwardEvents(peer *wsPeer, events <-chan match.Event, record 
 			if !peer.sendJSON(event) {
 				return
 			}
+			peer.touch()
 		}
 	}
 }
