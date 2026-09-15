@@ -41,4 +41,4 @@
 
 - [x] 7.1 `go test ./...`と`make check`が成功することを確認する
 - [x] 7.2 `openspec validate --all --strict`が成功することを確認する
-- [ ] 7.3 Issue #48の受け入れ条件を一つずつPR本文で確認する
+- [x] 7.3 Issue #48の受け入れ条件を一つずつPR本文で確認する
