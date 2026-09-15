@@ -21,7 +21,7 @@
           height="640"
           tabindex="0"
           role="application"
-          aria-label="8行8列のアンミカリバーシ盤。矢印キーでマスを選び、Enterまたはスペースで着手、Pでパスします。"
+          aria-label="8×8のアンミカリバーシ盤。矢印キーで場所を選び、Enterまたはスペースで駒を置き、Pでパスします。"
         ></canvas>
       </section>
 
@@ -29,13 +29,16 @@
         <section class="panel-block status-block">
           <p id="status-phase" class="status-phase" role="status" aria-live="polite">読込中</p>
           <p id="status-message" class="status-message"></p>
-          <p id="result-average" class="status-message" hidden></p>
+          <div id="average-scale" class="average-scale" role="meter" aria-label="終局盤面の平均色" aria-valuemin="0" aria-valuemax="255" hidden>
+            <div class="average-track">
+              <span id="average-marker" class="average-marker" aria-hidden="true"></span>
+            </div>
+          </div>
         </section>
 
         <section class="panel-block">
           <div class="next-color">
-            <span id="next-color-swatch" class="swatch" aria-hidden="true"></span>
-            <span id="next-color-value" class="next-color-value">—</span>
+            <span id="next-color-swatch" class="swatch" role="img" aria-label="次に置く駒の色"></span>
           </div>
           <dl class="meta">
             <dt>手番</dt>
@@ -52,7 +55,7 @@
             <button id="reconnect-button" type="button" class="action" hidden>再接続</button>
             <div id="local-controls">
               <div class="controls">
-                <label class="control">
+                <label id="seed-control" class="control" hidden>
                   <span>seed</span>
                   <input id="seed-input" type="number" min="0" max="4294967295" step="1" value="1" inputmode="numeric">
                 </label>
@@ -60,7 +63,7 @@
               </div>
             </div>
             <button id="pass-button" type="button" class="action" disabled>パス</button>
-            <button id="replay-open-button" type="button" class="action" hidden>棋譜を見る</button>
+            <button id="replay-open-button" type="button" class="action" hidden>対局の記録を見る</button>
           </div>
         </section>
 
@@ -104,6 +107,9 @@
       const playerIdKey = 'nadesiko-reversi-player-id'
       const playerId = sessionStorage.getItem(playerIdKey) ?? crypto.randomUUID().replaceAll('-', '')
       sessionStorage.setItem(playerIdKey, playerId)
+      if (new URLSearchParams(location.search).get('debug') === '1') {
+        document.querySelector('#seed-control').hidden = false
+      }
 
       const connect = () => {
         const ownGeneration = ++generation

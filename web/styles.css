@@ -116,9 +116,37 @@ body {
   background: var(--paper);
 }
 
-.next-color-value {
-  font-size: 1.3rem;
-  font-variant-numeric: tabular-nums;
+.average-scale[hidden] {
+  display: none;
+}
+
+.average-scale {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 64px;
+  margin-top: 8px;
+}
+
+.average-track {
+  position: relative;
+  width: calc(100% - 64px);
+  height: 24px;
+  margin: 0 32px;
+  background: linear-gradient(to right, #ffffff, #000000);
+  border: 2px solid var(--ink);
+}
+
+.average-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  transform: translate(-50%, -50%);
 }
 
 .meta {
@@ -150,6 +178,10 @@ body {
   gap: 2px;
   font-size: 0.8rem;
   color: var(--ink-mute);
+}
+
+.control[hidden] {
+  display: none;
 }
 
 .control select {
