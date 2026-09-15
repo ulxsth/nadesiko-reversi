@@ -10,7 +10,7 @@
   - `server/main.go`
   - `web/index.html`
   - `web/main.nako3`
-  - `tests/e2e/**`
+  - `docs/manual-debug.md`
   - `scripts/demo-*.sh`
   - `openspec/changes/complete-demo-integration/**`
 - 変更禁止:
@@ -27,7 +27,7 @@
 - [ ] 終了時に勝者と平均色が両クライアントへ表示される
 - [ ] 完了した対局のなでしこ棋譜を表示し、最初から再生できる
 - [ ] `/healthz`がGoとgonakoのready状態を返す
-- [ ] 正常系1本と不正手1本のE2Eテストがある
+- [ ] `docs/manual-debug.md`の正常系・不正手・終局チェックを人が実施し、結果をPRへ記録する
 - [ ] 初見のPCでREADMEどおりに起動できる
 - [ ] OpenSpecの全artifactが揃い、WSLで`make check`が成功する
 

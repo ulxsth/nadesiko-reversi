@@ -79,14 +79,6 @@ body {
   background: var(--paper);
 }
 
-.panel-title {
-  margin: 0 0 6px;
-  font-size: 0.8rem;
-  font-weight: normal;
-  color: var(--ink-mute);
-  letter-spacing: 0.12em;
-}
-
 .status-phase {
   margin: 0;
   font-size: 1.15rem;
@@ -116,15 +108,45 @@ body {
 }
 
 .swatch {
-  width: 34px;
-  height: 34px;
+  flex: none;
+  width: 64px;
+  height: 64px;
   border: 2px solid var(--ink);
+  border-radius: 50%;
   background: var(--paper);
 }
 
-.next-color-value {
-  font-size: 1.3rem;
-  font-variant-numeric: tabular-nums;
+.average-scale[hidden] {
+  display: none;
+}
+
+.average-scale {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 64px;
+  margin-top: 8px;
+}
+
+.average-track {
+  position: relative;
+  width: calc(100% - 64px);
+  height: 24px;
+  margin: 0 32px;
+  background: linear-gradient(to right, #ffffff, #000000);
+  border: 2px solid var(--ink);
+}
+
+.average-marker {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  transform: translate(-50%, -50%);
 }
 
 .meta {
@@ -156,6 +178,10 @@ body {
   gap: 2px;
   font-size: 0.8rem;
   color: var(--ink-mute);
+}
+
+.control[hidden] {
+  display: none;
 }
 
 .control select {
@@ -193,19 +219,30 @@ body {
   outline-offset: 2px;
 }
 
-.command-preview {
-  margin: 0;
-  padding: 8px;
-  max-height: 190px;
-  overflow: auto;
-  border: 1px solid var(--ink);
+.result-popup[hidden] {
+  display: none;
+}
+
+.result-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  width: min(560px, calc(100vw - 28px));
+  padding: 28px 24px;
+  transform: translate(-50%, -50%);
+  border: 3px solid var(--ink);
   background: var(--paper);
   color: var(--ink);
-  font-family: inherit;
-  font-size: 0.75rem;
+  box-shadow: 8px 8px 0 var(--ink);
+  text-align: center;
+  pointer-events: none;
+}
+
+.result-popup-message {
+  margin: 0;
+  font-size: clamp(1.1rem, 4vw, 1.8rem);
   line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 
 @media (max-width: 900px) {
@@ -230,5 +267,10 @@ body {
 
   .status-phase {
     font-size: 1rem;
+  }
+
+  .result-popup {
+    padding: 22px 16px;
+    box-shadow: 5px 5px 0 var(--ink);
   }
 }
