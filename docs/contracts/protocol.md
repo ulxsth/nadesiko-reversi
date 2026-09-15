@@ -53,7 +53,7 @@
 
 ## Runtime response
 
-成功時は`ok: true`と更新後`state`を返す。command適用時の`event`には`commandId`、`turnNumber`、`player`、`type`を含め、着手なら`row`、`col`、`placedColor`、変更された駒の`changes`も含める。
+成功時は`ok: true`と更新後`state`を返す。command適用時の`event`には`commandId`、`turnNumber`、`player`、`type`を含め、着手なら`row`、`col`、`placedColor`、変更された駒の`changes`も含める。`commandId`はeventとcommandを対応づける相関IDとログ出力にだけ使い、受理と拒否の判断には使わない。
 
 失敗時は`ok: false`、`error`、変更前`state`を返す。`error.message`は表示可能な日本語、`error.code`は次の安定値を使う。
 
@@ -76,7 +76,33 @@
 
 ## Transport
 
-ローカルHTTPはruntime responseをそのままbodyに使う。将来のWebSocketでは成功eventへroom単位の`sequence`を付け、成功ごとに1増やす。拒否commandではsequenceを進めない。
+ローカルHTTPはruntime responseをそのままbodyに使う。WebSocketも同じresponse bodyを使う。
+
+### 順序と冪等性
+
+event順序の識別には`turnNumber`を使う。`turnNumber`は受理済みcommand数であり、受理のたびにちょうど1増えるため、transport独自の連番は持たない。
+
+重複、再送、競合はすべて`expectedTurn`で扱う。
+
+| 状況 | 結果 |
+| --- | --- |
+| 同じcommandが2回届く | 1件目を受理し、2件目は`stale_turn` |
+| 応答消失後にクライアントが再送する | 適用済みなら`stale_turn`と現在state、未適用なら受理 |
+| 二人が同じ`expectedTurn`で同時に送る | 先に評価された1件だけ受理、残りは`stale_turn` |
+
+この性質により、クライアントはat-least-onceで再送してよい。サーバーは重複排除のために`commandId`を記憶しない。
+
+### 配信
+
+受理のたびに、差分ではなくgame state全体をroomの全接続へ配信する。盤面は64マスでstate全体でも1KB程度のため、差分配信の利点がない。クライアントは受信したstateで表示を置き換える。
+
+取りこぼしても次の受理で追いつくため、欠落検出の機構を持たない。接続直後と再接続直後にも現在stateを1通配信するので、専用の再同期requestも定義しない。
+
+拒否されたcommandはroomへ配信せず、送信者にだけ変更前stateを含むerrorを返す。
+
+### stale_turnの扱い
+
+`stale_turn`は正常な競合の結果として日常的に発生する。クライアントはこれをエラー表示せず、応答に含まれる現在stateで描き直す。
 
 ## Game record
 
