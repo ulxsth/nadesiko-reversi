@@ -22,7 +22,7 @@ func newEntry(gameID string, seed uint32, winner protocol.Player, moves int) rep
 		Seed:       seed,
 		StartedAt:  "2026-09-12T14:00:00Z",
 		EndedAt:    "2026-09-12T14:05:00Z",
-		Winner:     winner,
+		Winner:     &winner,
 		Commands:   commands,
 		FinalState: state,
 	}
@@ -99,7 +99,7 @@ func TestMemoryStoreSaveOverwritesWithoutDuplicating(t *testing.T) {
 	if err != nil {
 		t.Fatalf("取得に失敗: %v", err)
 	}
-	if entry.Record.Seed != 9 || entry.Record.Winner != protocol.PlayerLight {
+	if entry.Record.Seed != 9 || entry.Record.Winner == nil || *entry.Record.Winner != protocol.PlayerLight {
 		t.Errorf("上書きされていません: %+v", entry.Record.Summary())
 	}
 }

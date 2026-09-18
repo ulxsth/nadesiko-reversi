@@ -168,7 +168,7 @@ func TestScanRejectsCommandsOutsideVocabulary(t *testing.T) {
 
 	for _, tt := range intrusions {
 		t.Run(tt.name, func(t *testing.T) {
-			source := "「1」でルール版宣言\n「demo-1」と1で対局開始\n" + tt.line + "\n"
+			source := "「2」でルール版宣言\n「demo-1」と1で対局開始\n" + tt.line + "\n"
 
 			_, err := replay.Scan(source)
 			var sourceErr *replay.SourceError
@@ -193,7 +193,7 @@ func TestDecodeRejectsIntrusionBeforeRunning(t *testing.T) {
 		t.Fatalf("decoderを作れません: %v", err)
 	}
 
-	source := "「1」でルール版宣言\n「demo-1」と1で対局開始\n「のっとり」と表示\n"
+	source := "「2」でルール版宣言\n「demo-1」と1で対局開始\n「のっとり」と表示\n"
 
 	if _, _, err := decoder.Decode(context.Background(), source); err == nil {
 		t.Fatal("許可語彙の外を受け入れています")
@@ -329,5 +329,42 @@ func BenchmarkReplaySampleRecord(b *testing.B) {
 		if _, err := replayer.Replay(ctx, source); err != nil {
 			b.Fatalf("再生に失敗: %v", err)
 		}
+	}
+}
+
+// TestReplayRejectsPreviousRulesVersion は版1の棋譜を拒否することを確かめる。
+//
+// 版2で色変換の丸めと勝敗判定が変わり、同じ棋譜からでも別の盤面になる。
+// 黙って誤再生しないよう、gonakoを起動する前に落とす。
+func TestReplayRejectsPreviousRulesVersion(t *testing.T) {
+	runner := &fakeScriptRunner{output: []byte("{}")}
+	decoder, err := replay.NewDecoder("●対局データ出力とは\nここまで\n", runner)
+	if err != nil {
+		t.Fatalf("decoderを作れません: %v", err)
+	}
+
+	source := strings.Join([]string{
+		"「1」でルール版宣言",
+		"「demo-1」と1で対局開始",
+		"2と5で黒着手",
+		"「白」で対局終了",
+	}, "\n")
+
+	_, _, err = decoder.Decode(context.Background(), source)
+	var sourceErr *replay.SourceError
+	if !errors.As(err, &sourceErr) {
+		t.Fatalf("SourceErrorではありません: %T %v", err, err)
+	}
+	if sourceErr.Code != replay.CodeRecordUnsupportedRulesVersion {
+		t.Errorf("codeが違います: %q", sourceErr.Code)
+	}
+	if sourceErr.Line != 1 {
+		t.Errorf("行番号が違います: got %d, want 1", sourceErr.Line)
+	}
+	if sourceErr.Source != "「1」でルール版宣言" {
+		t.Errorf("該当行のソースが違います: %q", sourceErr.Source)
+	}
+	if runner.lastRun != "" {
+		t.Error("版1なのにgonakoを起動しています")
 	}
 }

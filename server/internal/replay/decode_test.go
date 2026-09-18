@@ -2,6 +2,7 @@ package replay_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -122,10 +123,10 @@ func TestDecodeRejectsMissingOrDuplicatedHeader(t *testing.T) {
 		name   string
 		source string
 	}{
-		{name: "開始行がない", source: "「1」でルール版宣言\n2と2で黒着手\n"},
+		{name: "開始行がない", source: "「2」でルール版宣言\n2と2で黒着手\n"},
 		{
 			name:   "開始行が2回ある",
-			source: "「1」でルール版宣言\n「demo-1」と1で対局開始\n「demo-2」と2で対局開始\n2と2で黒着手\n",
+			source: "「2」でルール版宣言\n「demo-1」と1で対局開始\n「demo-2」と2で対局開始\n2と2で黒着手\n",
 		},
 	}
 
@@ -145,9 +146,9 @@ func TestDecodeRejectsMissingOrDuplicatedHeader(t *testing.T) {
 }
 
 func TestDecodeAppendsOutputCallToHarness(t *testing.T) {
-	source := "「1」でルール版宣言\n「demo-1」と1で対局開始\n2と2で黒着手\n"
+	source := "「2」でルール版宣言\n「demo-1」と1で対局開始\n2と2で黒着手\n"
 	decoder, runner := newFakeDecoder(t,
-		`{"version":"1","rulesVersion":"1","ok":true,"gameId":"demo-1","seed":1,"winner":"","moves":[{"player":"dark","type":"place","row":2,"col":2}],"headerCount":1,"footerCount":0}`)
+		`{"version":"1","rulesVersion":"2","ok":true,"gameId":"demo-1","seed":1,"winner":null,"moves":[{"player":"dark","type":"place","row":2,"col":2}],"headerCount":1,"footerCount":0}`)
 
 	script, outline, err := decoder.Decode(context.Background(), source)
 	if err != nil {
@@ -174,9 +175,9 @@ func TestDecodeAppendsOutputCallToHarness(t *testing.T) {
 }
 
 func TestDecodeRejectsInvalidGameID(t *testing.T) {
-	source := "「1」でルール版宣言\n「demo 1」と1で対局開始\n2と2で黒着手\n"
+	source := "「2」でルール版宣言\n「demo 1」と1で対局開始\n2と2で黒着手\n"
 	decoder, _ := newFakeDecoder(t,
-		`{"version":"1","rulesVersion":"1","ok":true,"gameId":"demo 1","seed":1,"winner":"","moves":[{"player":"dark","type":"place","row":2,"col":2}],"headerCount":1,"footerCount":0}`)
+		`{"version":"1","rulesVersion":"2","ok":true,"gameId":"demo 1","seed":1,"winner":null,"moves":[{"player":"dark","type":"place","row":2,"col":2}],"headerCount":1,"footerCount":0}`)
 
 	_, _, err := decoder.Decode(context.Background(), source)
 	var sourceErr *replay.SourceError
@@ -192,7 +193,7 @@ func TestDecodeRejectsInvalidGameID(t *testing.T) {
 }
 
 func TestDecodeMapsGonakoDiagnosticToRecordLine(t *testing.T) {
-	source := "「1」でルール版宣言\n「demo-1」と1で対局開始\n2と2で黒着手\n白パス\n"
+	source := "「2」でルール版宣言\n「demo-1」と1で対局開始\n2と2で黒着手\n白パス\n"
 	// ハーネス2行 + 区切りの空行1行。連結後の6行目 = 棋譜の3行目。
 	runner := &fakeScriptRunner{err: &replay.ScriptExecError{
 		ExitCode: 1,
@@ -266,12 +267,22 @@ func TestEncodeLines(t *testing.T) {
 		t.Errorf("パス行が違います: %q", pass)
 	}
 
-	end, err := replay.EndLine(protocol.PlayerLight, 61, 8891, 64)
+	light := protocol.PlayerLight
+	end, err := replay.EndLine(&light, 61, 8891, 64)
 	if err != nil {
 		t.Fatalf("終了行を作れません: %v", err)
 	}
 	if !strings.HasPrefix(end, "「白」で対局終了") || !strings.Contains(end, "# 61手、色合計8891、駒64") {
 		t.Errorf("終了行が違います: %q", end)
+	}
+
+	// 勝者のいない終局は引分の終了行になる
+	draw, err := replay.EndLine(nil, 60, 8160, 64)
+	if err != nil {
+		t.Fatalf("引分の終了行を作れません: %v", err)
+	}
+	if !strings.HasPrefix(draw, "「引分」で対局終了") || !strings.Contains(draw, "# 60手、色合計8160、駒64") {
+		t.Errorf("引分の終了行が違います: %q", draw)
 	}
 
 	// 生成した行をそのまま走査で読み直せること
@@ -282,6 +293,15 @@ func TestEncodeLines(t *testing.T) {
 	}
 	if len(outline.MoveLines) != 2 || outline.HeaderLines != 1 || outline.FooterLines != 1 {
 		t.Errorf("走査結果が違います: %+v", outline)
+	}
+
+	// 引分の終了行も終了行として走査できる
+	drawOutline, err := replay.Scan(strings.Join([]string{start, place, draw}, "\n"))
+	if err != nil {
+		t.Fatalf("引分の棋譜を走査できません: %v", err)
+	}
+	if drawOutline.FooterLines != 1 {
+		t.Errorf("引分の終了行を数えられません: %+v", drawOutline)
 	}
 }
 
@@ -303,5 +323,123 @@ func TestValidateGameIDAndFileName(t *testing.T) {
 	}
 	if name != "demo-1.nako3" {
 		t.Errorf("ファイル名が違います: %q", name)
+	}
+}
+
+// drawScriptOutput は引き分けで終わった棋譜のハーネス出力を組み立てる。
+//
+// (0,0)=0と(7,7)=255だけが置かれた盤面はどの空きマスからも駒を挟めないので
+// 合法手が0件になり、色合計255・駒2で`2*255 == 2*255`が成り立つ。
+// 両者がパスすると勝者のいない終局になる。
+func drawScriptOutput(t *testing.T) string {
+	t.Helper()
+
+	board := protocol.NewBoard()
+	board[0] = protocol.NewCell(0)
+	board[63] = protocol.NewCell(255)
+
+	start := protocol.State{
+		Version:       protocol.Version,
+		GameID:        "draw-1",
+		Board:         board,
+		TurnNumber:    0,
+		CurrentPlayer: protocol.PlayerDark,
+		NextColor:     7,
+		RNGState:      1234,
+		Phase:         protocol.PhasePlaying,
+		LegalMoves:    []protocol.Position{},
+	}
+
+	afterFirstPass := start.Clone()
+	afterFirstPass.TurnNumber = 1
+	afterFirstPass.CurrentPlayer = protocol.PlayerLight
+	afterFirstPass.ConsecutivePasses = 1
+
+	finished := afterFirstPass.Clone()
+	finished.TurnNumber = 2
+	finished.CurrentPlayer = protocol.PlayerDark
+	finished.ConsecutivePasses = 2
+	finished.Phase = protocol.PhaseFinished
+	finished.Winner = nil
+	finished.LegalMoves = []protocol.Position{}
+
+	script := replay.Script{
+		Version:      replay.Version,
+		RulesVersion: replay.RulesVersion,
+		GameID:       "draw-1",
+		Seed:         1,
+		Winner:       nil,
+		Moves:        []replay.Move{replay.PassMove(protocol.PlayerDark), replay.PassMove(protocol.PlayerLight)},
+		HeaderCount:  1,
+		FooterCount:  1,
+		VersionCount: 1,
+		OK:           true,
+		Frames: []replay.ScriptFrame{
+			{TurnNumber: 0, MoveNumber: 0, State: start},
+			{TurnNumber: 1, MoveNumber: 1, State: afterFirstPass},
+			{TurnNumber: 2, MoveNumber: 2, State: finished},
+		},
+	}
+
+	encoded, err := json.Marshal(script)
+	if err != nil {
+		t.Fatalf("棋譜の出力を組み立てられません: %v", err)
+	}
+	return string(encoded)
+}
+
+// TestReplayAcceptsDrawRecord は引き分けの棋譜が不一致にならないことを確かめる。
+func TestReplayAcceptsDrawRecord(t *testing.T) {
+	source := strings.Join([]string{
+		"「" + replay.RulesVersion + "」でルール版宣言",
+		"「draw-1」と1で対局開始",
+		"黒パス",
+		"白パス",
+		"「引分」で対局終了   # 2手、色合計255、駒2",
+	}, "\n") + "\n"
+
+	decoder, _ := newFakeDecoder(t, drawScriptOutput(t))
+	replayer, err := replay.NewReplayer(decoder)
+	if err != nil {
+		t.Fatalf("replayerを作れません: %v", err)
+	}
+
+	result, err := replayer.Replay(context.Background(), source)
+	if err != nil {
+		t.Fatalf("引き分けの棋譜を再生できません: %v", err)
+	}
+	if result.Script.Winner != nil {
+		t.Errorf("引き分けなのに勝者がいます: %v", result.Script.Winner)
+	}
+	final := result.FinalState()
+	if final.Phase != protocol.PhaseFinished || final.Winner != nil {
+		t.Errorf("終局が引き分けになっていません: phase=%s winner=%v", final.Phase, final.Winner)
+	}
+	if record := result.Record(); record.Winner != nil {
+		t.Errorf("対局記録の勝者が引き分けになっていません: %v", record.Winner)
+	}
+
+	// 書き出しても引分の終了行になり、そのまま読み直せること
+	encoded, err := replay.EncodeResult(result)
+	if err != nil {
+		t.Fatalf("引き分けの棋譜を書き出せません: %v", err)
+	}
+	if !strings.Contains(encoded, "「引分」で対局終了") {
+		t.Errorf("引分の終了行がありません: %q", encoded)
+	}
+	outline, err := replay.Scan(encoded)
+	if err != nil {
+		t.Fatalf("書き出した棋譜を走査できません: %v", err)
+	}
+	if outline.FooterLines != 1 || len(outline.MoveLines) != 2 {
+		t.Errorf("往復した棋譜の構成が違います: %+v", outline)
+	}
+
+	again, err := replayer.Replay(context.Background(), encoded)
+	if err != nil {
+		t.Fatalf("書き出した棋譜を再生できません: %v", err)
+	}
+	if again.FinalState().Winner != nil {
+		t.Error("往復後に勝者が生まれています")
 	}
 }

@@ -969,9 +969,7 @@ func (a *demoApp) submitCommand(roomID, playerID string, record *roomRecord, com
 }
 
 func (a *demoApp) saveFinished(roomID string, record *roomRecord, final protocol.State) error {
-	if final.Winner == nil {
-		return fmt.Errorf("終局結果に勝者がありません")
-	}
+	// 引き分けの終局はwinnerがnilになるので、勝者の有無では弾かない
 	lines := append(replay.HeaderLines(record.startedAt, time.Now().UTC().Format(time.RFC3339)), "")
 	lines = append(lines, replay.RulesVersionLine())
 	startLine, err := replay.StartLine(roomID, record.seed)
@@ -1005,7 +1003,8 @@ func (a *demoApp) saveFinished(roomID string, record *roomRecord, final protocol
 			pieceCount++
 		}
 	}
-	endLine, err := replay.EndLine(*final.Winner, len(record.moves), colorSum, pieceCount)
+	// 引き分けの終局はwinnerがnilのまま。EndLineが「引分」を書く
+	endLine, err := replay.EndLine(final.Winner, len(record.moves), colorSum, pieceCount)
 	if err != nil {
 		return err
 	}
@@ -1056,6 +1055,7 @@ func (a *demoApp) handleReplay(w http.ResponseWriter, r *http.Request) {
 		GameID string                `json:"gameId"`
 		Source string                `json:"source"`
 		Frames []replayFrameResponse `json:"frames"`
-		Winner protocol.Player       `json:"winner"`
+		// Winner は引き分けならnull
+		Winner *protocol.Player `json:"winner"`
 	}{GameID: gameID, Source: source, Frames: frames, Winner: result.Script.Winner})
 }

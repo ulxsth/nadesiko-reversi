@@ -16,7 +16,10 @@ const Version = protocol.Version
 
 // RulesVersion はこのサーバーが再生できるルール版。棋譜の宣言行と突き合わせる。
 // ルールの振る舞いが変わったらここを上げ、古い棋譜は明示的に拒否する。
-const RulesVersion = "1"
+//
+// 版2で色変換を四捨五入へ変え、色の重心がちょうど中央の終局を引き分けにした。
+// 版1の棋譜は同じseedでも別の盤面になるため再生できない。
+const RulesVersion = "2"
 
 // Move は棋譜1手分の指し手。
 // contractのcommandからcommandIdとexpectedTurnを除いたもので、
@@ -96,9 +99,10 @@ type Script struct {
 	Version string `json:"version"`
 	GameID  string `json:"gameId"`
 	Seed    uint32 `json:"seed"`
-	// Winner は終了行の手番語。終了行が無い進行中の記録では空。
-	Winner protocol.Player `json:"winner"`
-	Moves  []Move          `json:"moves"`
+	// Winner は終了行の手番語。引き分けの終了行とnilで対応する。
+	// 終了行が無い進行中の記録でもnilになるため、区別はFinishedで行う。
+	Winner *protocol.Player `json:"winner"`
+	Moves  []Move           `json:"moves"`
 	// HeaderCount は開始行の出現回数。1以外はrecord_missing_header。
 	HeaderCount int `json:"headerCount"`
 	// FooterCount は終了行の出現回数。0は進行中の記録。
@@ -140,15 +144,16 @@ type ScriptFailure struct {
 
 // Record はcontractのgame record v1。再生で確定した最終stateを含む。
 type Record struct {
-	Version      string             `json:"version"`
-	RulesVersion string             `json:"rulesVersion"`
-	GameID       string             `json:"gameId"`
-	Seed         uint32             `json:"seed"`
-	StartedAt    string             `json:"startedAt"`
-	EndedAt      string             `json:"endedAt"`
-	Winner       protocol.Player    `json:"winner"`
-	Commands     []protocol.Command `json:"commands"`
-	FinalState   protocol.State     `json:"finalState"`
+	Version      string `json:"version"`
+	RulesVersion string `json:"rulesVersion"`
+	GameID       string `json:"gameId"`
+	Seed         uint32 `json:"seed"`
+	StartedAt    string `json:"startedAt"`
+	EndedAt      string `json:"endedAt"`
+	// Winner は最終結果。引き分けはnilで表す。
+	Winner     *protocol.Player   `json:"winner"`
+	Commands   []protocol.Command `json:"commands"`
+	FinalState protocol.State     `json:"finalState"`
 }
 
 // Script はrecordから棋譜ソース用の対局データを取り出す。
@@ -164,19 +169,29 @@ func (r Record) Script() Script {
 		Seed:         r.Seed,
 		StartedAt:    r.StartedAt,
 		EndedAt:      r.EndedAt,
-		Winner:       r.Winner,
+		Winner:       clonePlayer(r.Winner),
 		Moves:        moves,
 	}
 }
 
+// clonePlayer は勝者のポインタを複製する。引き分けのnilはnilのまま返す。
+func clonePlayer(player *protocol.Player) *protocol.Player {
+	if player == nil {
+		return nil
+	}
+	out := *player
+	return &out
+}
+
 // Summary は一覧表示用の要約。
 type Summary struct {
-	GameID    string          `json:"gameId"`
-	Seed      uint32          `json:"seed"`
-	Winner    protocol.Player `json:"winner"`
-	MoveCount int             `json:"moveCount"`
-	StartedAt string          `json:"startedAt"`
-	EndedAt   string          `json:"endedAt"`
+	GameID string `json:"gameId"`
+	Seed   uint32 `json:"seed"`
+	// Winner は最終結果。引き分けはnilで表す。
+	Winner    *protocol.Player `json:"winner"`
+	MoveCount int              `json:"moveCount"`
+	StartedAt string           `json:"startedAt"`
+	EndedAt   string           `json:"endedAt"`
 }
 
 // Summary はrecordの要約を返す。
@@ -184,7 +199,7 @@ func (r Record) Summary() Summary {
 	return Summary{
 		GameID:    r.GameID,
 		Seed:      r.Seed,
-		Winner:    r.Winner,
+		Winner:    clonePlayer(r.Winner),
 		MoveCount: len(r.Commands),
 		StartedAt: r.StartedAt,
 		EndedAt:   r.EndedAt,
@@ -194,6 +209,7 @@ func (r Record) Summary() Summary {
 // Clone はrecordを複製する。盤面とcommand列も新しい領域を持つ。
 func (r Record) Clone() Record {
 	out := r
+	out.Winner = clonePlayer(r.Winner)
 	out.Commands = append([]protocol.Command(nil), r.Commands...)
 	for i, command := range r.Commands {
 		if command.Row != nil {

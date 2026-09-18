@@ -17,12 +17,18 @@
   ],
   "properties": {
     "version": {"const": "1"},
-    "rulesVersion": {"const": "1"},
+    "rulesVersion": {"const": "2"},
     "gameId": {"type": "string", "minLength": 1},
     "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
     "startedAt": {"type": "string", "format": "date-time"},
     "endedAt": {"type": "string", "format": "date-time"},
-    "winner": {"$ref": "common.schema.json#/$defs/player"},
+    "winner": {
+      "description": "引き分けはnull",
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "common.schema.json#/$defs/player"}
+      ]
+    },
     "commands": {
       "type": "array",
       "items": {"$ref": "common.schema.json#/$defs/command"}

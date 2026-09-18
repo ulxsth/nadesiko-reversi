@@ -9,9 +9,11 @@ import (
 )
 
 // 棋譜で使う手番語。契約のplayerと1対1で対応する。
+// drawWordは勝者のいない終局を表し、終了行にだけ現れる。
 const (
 	darkWord  = "黒"
 	lightWord = "白"
+	drawWord  = "引分"
 )
 
 // gameIDPattern はgameIdの制約。ファイル名に使うため文字種を絞る。
@@ -42,6 +44,7 @@ func playerWord(player protocol.Player) string {
 }
 
 // wordPlayer は手番語に対応するplayerを返す。
+// 引分は勝者を持たないので、ここではなくresultWordが扱う。
 func wordPlayer(word string) (protocol.Player, bool) {
 	switch word {
 	case darkWord:
@@ -51,6 +54,17 @@ func wordPlayer(word string) (protocol.Player, bool) {
 	default:
 		return "", false
 	}
+}
+
+// resultWord は終了行に書く結果の語を返す。勝者がいなければ引分。
+func resultWord(winner *protocol.Player) (string, error) {
+	if winner == nil {
+		return drawWord, nil
+	}
+	if !winner.Valid() {
+		return "", fmt.Errorf("勝者が不正です: %q", string(*winner))
+	}
+	return playerWord(*winner), nil
 }
 
 // HeaderLines は棋譜の先頭に置くヘッダ行を返す。
@@ -104,12 +118,14 @@ func PassLine(player protocol.Player) (string, error) {
 }
 
 // EndLine は終了行を返す。phaseがfinishedになった時点で1回だけ書く。
-func EndLine(winner protocol.Player, moveCount, colorSum, pieceCount int) (string, error) {
-	if !winner.Valid() {
-		return "", fmt.Errorf("勝者が不正です: %q", string(winner))
+// winnerがnilの終局は引き分けで、「引分」を書く。
+func EndLine(winner *protocol.Player, moveCount, colorSum, pieceCount int) (string, error) {
+	word, err := resultWord(winner)
+	if err != nil {
+		return "", err
 	}
 	return fmt.Sprintf("「%s」で対局終了   # %d手、色合計%d、駒%d",
-		playerWord(winner), moveCount, colorSum, pieceCount), nil
+		word, moveCount, colorSum, pieceCount), nil
 }
 
 // boardTotals は盤面の色合計と駒数を返す。終了行の注釈に使う。
@@ -172,12 +188,9 @@ func EncodeResult(result *Result) (string, error) {
 		// 終了行のない記録は進行中とみなす。ここまでを棋譜として返す。
 		return out.String(), nil
 	}
-	if final.Winner == nil {
-		return "", fmt.Errorf("終局しているのに勝者がありません")
-	}
-
+	// 終局しているのにwinnerがnilなのは引き分け。EndLineが「引分」を書く。
 	colorSum, pieceCount := boardTotals(final.Board)
-	endLine, err := EndLine(*final.Winner, len(result.Frames)-1, colorSum, pieceCount)
+	endLine, err := EndLine(final.Winner, len(result.Frames)-1, colorSum, pieceCount)
 	if err != nil {
 		return "", err
 	}

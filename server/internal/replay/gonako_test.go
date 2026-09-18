@@ -146,7 +146,8 @@ func playGame(t *testing.T, ruleRunner runtime.Runner, gameID string, seed uint3
 		state = *applied.State
 	}
 
-	if state.Phase != protocol.PhaseFinished || state.Winner == nil {
+	// 引き分けならwinnerはnilのままなので、終局したかだけを見る
+	if state.Phase != protocol.PhaseFinished {
 		t.Fatalf("対局が終わりませんでした: phase=%s", state.Phase)
 	}
 
@@ -158,7 +159,7 @@ func playGame(t *testing.T, ruleRunner runtime.Runner, gameID string, seed uint3
 		colorSum += int(*cell)
 		pieceCount++
 	}
-	endLine, err := replay.EndLine(*state.Winner, state.TurnNumber, colorSum, pieceCount)
+	endLine, err := replay.EndLine(state.Winner, state.TurnNumber, colorSum, pieceCount)
 	if err != nil {
 		t.Fatalf("終了行を作れません: %v", err)
 	}
@@ -197,7 +198,7 @@ func TestHarnessReadsContractExample(t *testing.T) {
 		"# 開始 2026-09-12T21:30:00+09:00",
 		"# 終了 2026-09-12T21:44:12+09:00",
 		"",
-		"「1」でルール版宣言",
+		"「2」でルール版宣言",
 		"「demo-1」と1で対局開始",
 		"",
 		"2と5で黒着手    # 色60、1個変換",
@@ -221,8 +222,8 @@ func TestHarnessReadsContractExample(t *testing.T) {
 	if result.Script.Seed != 1 {
 		t.Errorf("seedが違います: %d", result.Script.Seed)
 	}
-	if result.Script.Winner != protocol.PlayerLight {
-		t.Errorf("勝者が違います: %q", result.Script.Winner)
+	if result.Script.Winner == nil || *result.Script.Winner != protocol.PlayerLight {
+		t.Errorf("勝者が違います: %v", result.Script.Winner)
 	}
 	if got := len(result.Script.Moves); got != 3 {
 		t.Fatalf("手数が違います: %d", got)
@@ -263,7 +264,7 @@ func TestSampleRecordReplaysToRecordedResult(t *testing.T) {
 	if final.Phase != protocol.PhaseFinished {
 		t.Errorf("再生後に終局していません: %s", final.Phase)
 	}
-	if final.Winner == nil || *final.Winner != result.Script.Winner {
+	if !samePlayerForTest(final.Winner, result.Script.Winner) {
 		t.Errorf("勝者が一致しません: %v", final.Winner)
 	}
 	if len(result.Frames) != len(result.Script.Moves)+1 {
@@ -429,8 +430,8 @@ func TestServiceListGetRandom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("取得に失敗: %v", err)
 	}
-	if got.Winner != record.Winner {
-		t.Errorf("勝者が違います: %q", got.Winner)
+	if !samePlayerForTest(got.Winner, record.Winner) {
+		t.Errorf("勝者が違います: %v", got.Winner)
 	}
 
 	random, err := service.Random(ctx)
@@ -456,5 +457,192 @@ func TestServiceListGetRandom(t *testing.T) {
 	}
 	if len(partial.Frames) != 4 {
 		t.Errorf("盤面の数が違います: %d", len(partial.Frames))
+	}
+}
+
+// samePlayerForTest は勝者が一致するかを返す。どちらもnilなら引き分けどうしで一致。
+func samePlayerForTest(left, right *protocol.Player) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+// TestRulesReturnDrawForBalancedBoard は色の重心がちょうど中央の終局が
+// 引き分けになることを、実ルールengineを動かして確かめる。
+//
+// (0,0)=0と(7,7)=255だけの盤面はどの空きマスからも駒を挟めないので合法手が
+// 0件になり、色合計255・駒2で`2*255 == 2*255`が成り立つ。
+func TestRulesReturnDrawForBalancedBoard(t *testing.T) {
+	ctx := context.Background()
+	ruleRunner := newRuleRunner(t)
+
+	board := protocol.NewBoard()
+	board[0] = protocol.NewCell(0)
+	board[63] = protocol.NewCell(255)
+	state := protocol.State{
+		Version:       protocol.Version,
+		GameID:        "draw-board",
+		Board:         board,
+		TurnNumber:    0,
+		CurrentPlayer: protocol.PlayerDark,
+		NextColor:     7,
+		RNGState:      1234,
+		Phase:         protocol.PhasePlaying,
+		LegalMoves:    []protocol.Position{},
+	}
+
+	first, err := runtime.ApplyCommand(ctx, ruleRunner, state,
+		protocol.PassCommand("draw-pass-1", protocol.PlayerDark, 0))
+	if err != nil {
+		t.Fatalf("1回目のパスに失敗: %v", err)
+	}
+	if !first.OK || first.State == nil {
+		t.Fatalf("1回目のパスが拒否されました: %+v", first.Error)
+	}
+
+	second, err := runtime.ApplyCommand(ctx, ruleRunner, *first.State,
+		protocol.PassCommand("draw-pass-2", protocol.PlayerLight, 1))
+	if err != nil {
+		t.Fatalf("2回目のパスに失敗: %v", err)
+	}
+	if !second.OK || second.State == nil {
+		t.Fatalf("2回目のパスが拒否されました: %+v", second.Error)
+	}
+
+	if second.State.Phase != protocol.PhaseFinished {
+		t.Fatalf("連続パスで終局しません: phase=%s", second.State.Phase)
+	}
+	if second.State.Winner != nil {
+		t.Errorf("引き分けなのに勝者がいます: %q", string(*second.State.Winner))
+	}
+	if err := second.State.Validate(); err != nil {
+		t.Errorf("引き分けのstateが不正と判定されました: %v", err)
+	}
+}
+
+// TestRulesRoundColorTransform は色変換の丸めを実ルールengineで固定する。
+//
+// (0,1)を変換対象、(0,2)を固定端にして(0,0)へ置くと、変換色は
+// round((nextColor+固定端+変換対象)/3)になる。3で割った余り0/1/2と、
+// 和が0と765の両端を確かめる。
+func TestRulesRoundColorTransform(t *testing.T) {
+	ctx := context.Background()
+	ruleRunner := newRuleRunner(t)
+
+	tests := []struct {
+		name      string
+		nextColor uint8
+		target    uint8
+		anchor    uint8
+		want      uint8
+	}{
+		{name: "余り0", nextColor: 0, target: 0, anchor: 0, want: 0},
+		{name: "余り1", nextColor: 1, target: 0, anchor: 0, want: 0},
+		{name: "余り2", nextColor: 2, target: 0, anchor: 0, want: 1},
+		{name: "割り切れる", nextColor: 3, target: 0, anchor: 0, want: 1},
+		{name: "上端", nextColor: 255, target: 255, anchor: 255, want: 255},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			board := protocol.NewBoard()
+			board[1] = protocol.NewCell(tt.target)
+			board[2] = protocol.NewCell(tt.anchor)
+			state := protocol.State{
+				Version:       protocol.Version,
+				GameID:        "round-board",
+				Board:         board,
+				TurnNumber:    0,
+				CurrentPlayer: protocol.PlayerDark,
+				NextColor:     tt.nextColor,
+				RNGState:      1234,
+				Phase:         protocol.PhasePlaying,
+				LegalMoves:    []protocol.Position{{Row: 0, Col: 0}},
+			}
+
+			applied, err := runtime.ApplyCommand(ctx, ruleRunner, state,
+				protocol.PlaceCommand("round-1", protocol.PlayerDark, 0, 0, 0))
+			if err != nil {
+				t.Fatalf("着手に失敗: %v", err)
+			}
+			if !applied.OK || applied.State == nil {
+				t.Fatalf("着手が拒否されました: %+v", applied.Error)
+			}
+			got := applied.State.Board[1]
+			if got == nil {
+				t.Fatal("変換対象が空きマスになっています")
+			}
+			if *got != tt.want {
+				t.Errorf("変換色が違います: got %d, want %d", *got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRulesReturnDrawWhenBoardFills は盤面満杯の終了経路でも引き分けになることを確かめる。
+//
+// 着手(0,0)で変換されるのは行0・列0・対角の駒だけなので、そこと置く駒を0にして
+// 変換に関与しない42マスのうち32マスを255にすると、着手後の色合計は8160・駒64になり
+// `2*8160 == 64*255`が成り立つ。
+func TestRulesReturnDrawWhenBoardFills(t *testing.T) {
+	ctx := context.Background()
+	ruleRunner := newRuleRunner(t)
+
+	board := protocol.NewBoard()
+	whites := 0
+	for index := range board {
+		if index == 0 {
+			// 最後の空きマス
+			continue
+		}
+		transformed := index <= 7 || index%8 == 0 || index/8 == index%8
+		color := uint8(0)
+		if !transformed && whites < 32 {
+			color = 255
+			whites++
+		}
+		board[index] = protocol.NewCell(color)
+	}
+	if whites != 32 {
+		t.Fatalf("白駒の数が違います: %d", whites)
+	}
+
+	state := protocol.State{
+		Version:       protocol.Version,
+		GameID:        "draw-full",
+		Board:         board,
+		TurnNumber:    0,
+		CurrentPlayer: protocol.PlayerDark,
+		NextColor:     0,
+		RNGState:      1234,
+		Phase:         protocol.PhasePlaying,
+		LegalMoves:    []protocol.Position{{Row: 0, Col: 0}},
+	}
+
+	applied, err := runtime.ApplyCommand(ctx, ruleRunner, state,
+		protocol.PlaceCommand("draw-full-1", protocol.PlayerDark, 0, 0, 0))
+	if err != nil {
+		t.Fatalf("最後の着手に失敗: %v", err)
+	}
+	if !applied.OK || applied.State == nil {
+		t.Fatalf("最後の着手が拒否されました: %+v", applied.Error)
+	}
+	if applied.State.Phase != protocol.PhaseFinished {
+		t.Fatalf("盤面満杯で終局しません: phase=%s", applied.State.Phase)
+	}
+	if applied.State.Winner != nil {
+		t.Errorf("引き分けなのに勝者がいます: %q", string(*applied.State.Winner))
+	}
+
+	colorSum := 0
+	for _, cell := range applied.State.Board {
+		if cell == nil {
+			t.Fatal("盤面が満杯になっていません")
+		}
+		colorSum += int(*cell)
+	}
+	if colorSum != 8160 {
+		t.Errorf("色合計が違います: got %d, want 8160", colorSum)
 	}
 }

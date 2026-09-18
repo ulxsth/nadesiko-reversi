@@ -120,10 +120,8 @@ func (s State) Validate() *Error {
 			return NewError(CodeInvalidState, "playing中はwinnerがnullである必要があります")
 		}
 	case PhaseFinished:
-		if s.Winner == nil {
-			return NewError(CodeInvalidState, "finished時はwinnerが必要です")
-		}
-		if !s.Winner.Valid() {
+		// winnerがnullの終局は引き分け。playingとはphaseで区別できる
+		if s.Winner != nil && !s.Winner.Valid() {
 			return NewError(CodeInvalidState, "winnerが不正です")
 		}
 		if len(s.LegalMoves) != 0 {

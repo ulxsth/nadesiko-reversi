@@ -48,7 +48,13 @@
       "if": {"properties": {"phase": {"const": "finished"}}},
       "then": {
         "properties": {
-          "winner": {"$ref": "common.schema.json#/$defs/player"},
+          "winner": {
+            "description": "引き分けはnull",
+            "oneOf": [
+              {"type": "null"},
+              {"$ref": "common.schema.json#/$defs/player"}
+            ]
+          },
           "legalMoves": {"maxItems": 0}
         }
       }
